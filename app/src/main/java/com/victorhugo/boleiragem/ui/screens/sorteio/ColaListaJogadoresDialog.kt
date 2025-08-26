@@ -113,7 +113,7 @@ fun ColaListaJogadoresDialog(
                         .weight(1f)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White)
+                        // .background(Color.White) // REMOVIDO
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
@@ -127,9 +127,9 @@ fun ColaListaJogadoresDialog(
                             .fillMaxSize()
                             .padding(8.dp),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White,
-                            disabledContainerColor = Color.White,
+                            // focusedContainerColor = Color.White, // REMOVIDO
+                            // unfocusedContainerColor = Color.White, // REMOVIDO
+                            // disabledContainerColor = Color.White, // REMOVIDO
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             cursorColor = MaterialTheme.colorScheme.primary

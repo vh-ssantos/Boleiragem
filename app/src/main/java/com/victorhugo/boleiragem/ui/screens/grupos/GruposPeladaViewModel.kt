@@ -298,7 +298,8 @@ class GruposPeladaViewModel @Inject constructor(
         _perfilConfigSelecionadoSorteioRapido.value = null
         _usarPerfilExistenteSorteioRapido.value = false // Força configuração manual
         _jogadoresPorTimeSorteioRapido.value = 5 // Reset para padrão
-        _numeroDeTimesSorteioRapido.value = Math.max(1, nomes.size / 5) // Sugestão inicial de times
+        _numeroDeTimesSorteioRapido.value =
+            1.coerceAtLeast(nomes.size / 5) // Sugestão inicial de times
 
         limparErroSorteioRapido()
         validarConfiguracaoSorteioRapido() // Valida com a nova contagem e config

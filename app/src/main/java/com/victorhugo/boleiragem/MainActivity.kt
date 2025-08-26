@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
@@ -32,7 +31,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -47,19 +45,10 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.victorhugo.boleiragem.navigation.BoleiragemBottomNavigationBar
 import com.victorhugo.boleiragem.navigation.NavDestinations
-import com.victorhugo.boleiragem.ui.screens.cadastro.CadastroJogadoresScreen
-import com.victorhugo.boleiragem.ui.screens.cadastro.DetalheJogadorScreen
-import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoPontuacaoScreen
-import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoTimesScreen
-import com.victorhugo.boleiragem.ui.screens.configuracao.GerenciadorPerfisScreen
-import com.victorhugo.boleiragem.ui.screens.estatisticas.EstatisticasScreen
 import com.victorhugo.boleiragem.ui.screens.grupos.GruposPeladaScreen
-import com.victorhugo.boleiragem.ui.screens.historico.HistoricoScreen
 import com.victorhugo.boleiragem.ui.screens.login.LoginScreen
 import com.victorhugo.boleiragem.ui.screens.sorteio.ResultadoSorteioScreen
-import com.victorhugo.boleiragem.ui.screens.sorteio.SorteioTimesScreen
 import com.victorhugo.boleiragem.ui.screens.splash.SplashScreen
-import com.victorhugo.boleiragem.ui.screens.times.TimesAtuaisScreen
 import com.victorhugo.boleiragem.ui.theme.BoleiragemTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
