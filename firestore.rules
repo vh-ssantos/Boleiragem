@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// Regras de segurança do Firestore para o Boleiragem.
+// Cole isto no Firebase Console -> Firestore Database -> Regras (substituindo as regras de modo teste).
+//
+// Modelo:
+// - "grupos/{grupoId}": dono (donoId) e editores (editoresIds) editam tudo; membros (membrosIds) só leem.
+//   Qualquer usuário autenticado pode se auto-adicionar a membrosIds (fluxo de "entrar com código") --
+//   a validação de que ele *tinha* o código certo já aconteceu no app (buscarPorCodigo antes de entrar);
+//   a regra aqui só garante que a escrita não altera mais nada além dessa lista.
+// - "usuarios/{uid}": cada usuário só escreve o próprio perfil; qualquer autenticado pode ler
+//   (necessário pra mostrar nome de membros dentro de um grupo).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function autenticado() {
+      return request.auth != null;
+    }
+
+    function ehDono(grupo) {
+      return autenticado() && request.auth.uid == grupo.data.donoId;
+    }
+
+    function ehEditor(grupo) {
+      return autenticado() && request.auth.uid in grupo.data.editoresIds;
+    }
+
+    function podeEditarConteudo(grupo) {
+      return ehDono(grupo) || ehEditor(grupo);
+    }
+
+    function ehMembro(grupo) {
+      return autenticado() && request.auth.uid in grupo.data.membrosIds;
+    }
+
+    // Update que só adiciona o próprio uid a membrosIds, sem tocar em mais nada (fluxo "entrar com código")
+    function estaEntrandoNoGrupo(grupoAntes, grupoDepois) {
+      return autenticado()
+        && grupoDepois.data.membrosIds == grupoAntes.data.membrosIds.concat([request.auth.uid])
+        && grupoDepois.data.donoId == grupoAntes.data.donoId
+        && grupoDepois.data.editoresIds == grupoAntes.data.editoresIds
+        && grupoDepois.data.codigoConvite == grupoAntes.data.codigoConvite
+        && grupoDepois.data.nome == grupoAntes.data.nome;
+    }
+
+    // Update que só remove o PRÓPRIO uid de membrosIds (fluxo "sair do grupo" feito por um membro comum,
+    // que não passa em podeEditarConteudo). Restrito ao máximo que a linguagem de regras permite:
+    // só o tamanho da lista pode cair em exatamente 1, o autor tem que estar na lista antes e sumir depois,
+    // e nenhum outro campo do grupo pode mudar nessa escrita.
+    function estaSaindoDoGrupo(grupoAntes, grupoDepois) {
+      return autenticado()
+        && request.auth.uid in grupoAntes.data.membrosIds
+        && !(request.auth.uid in grupoDepois.data.membrosIds)
+        && grupoDepois.data.membrosIds.size() == grupoAntes.data.membrosIds.size() - 1
+        // Quem chega até aqui não é dono nem editor (senão caía em podeEditarConteudo acima),
+        // então editoresIds não pode ter mudado nessa escrita.
+        && grupoDepois.data.editoresIds == grupoAntes.data.editoresIds
+        && grupoDepois.data.donoId == grupoAntes.data.donoId
+        && grupoDepois.data.nome == grupoAntes.data.nome
+        && grupoDepois.data.codigoConvite == grupoAntes.data.codigoConvite
+        && grupoDepois.data.permiteConviteDeMembros == grupoAntes.data.permiteConviteDeMembros;
+    }
+
+    match /grupos/{grupoId} {
+      allow read: if ehMembro(resource) || podeEditarConteudo(resource);
+      allow create: if autenticado() && request.resource.data.donoId == request.auth.uid;
+      allow update: if podeEditarConteudo(resource)
+        || estaEntrandoNoGrupo(resource, request.resource)
+        || estaSaindoDoGrupo(resource, request.resource);
+      allow delete: if ehDono(resource);
+    }
+
+    match /usuarios/{uid} {
+      allow read: if autenticado();
+      allow write: if autenticado() && request.auth.uid == uid;
+    }
+  }
+}

@@ -45,7 +45,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.victorhugo.boleiragem.R
 import com.victorhugo.boleiragem.data.model.DiaSemana
 import com.victorhugo.boleiragem.data.model.GrupoPelada
+import com.victorhugo.boleiragem.data.model.GrupoRemoto
+import com.victorhugo.boleiragem.data.model.PapelGrupo
 import com.victorhugo.boleiragem.data.model.TipoRecorrencia
+import com.victorhugo.boleiragem.data.model.UsuarioPerfil
 import com.victorhugo.boleiragem.ui.screens.compartilhar.CompartilharPeladaScreen
 import com.victorhugo.boleiragem.ui.screens.grupos.dialogs.SorteioRapidoDialog
 import com.victorhugo.boleiragem.ui.screens.sorteio.ColaListaJogadoresDialog
@@ -98,6 +101,17 @@ fun GruposPeladaScreen(
     val navegarParaResultadoSorteio by viewModel.navegarParaResultadoSorteio.collectAsState()
     val erroSorteioRapidoAtual by viewModel.erroSorteioRapido.collectAsState()
     val podeRealizarSorteioRapido by viewModel.podeRealizarSorteioRapido.collectAsState()
+
+    // Grupos compartilhados (Firestore)
+    val gruposComoConvidado by viewModel.gruposComoConvidado.collectAsState()
+    val mostrarDialogoEntrarComCodigo by viewModel.mostrarDialogoEntrarComCodigo.collectAsState()
+    val erroEntrarComCodigo by viewModel.erroEntrarComCodigo.collectAsState()
+    val carregandoEntrarComCodigo by viewModel.carregandoEntrarComCodigo.collectAsState()
+    val convitePendente by viewModel.convitePendente.collectAsState()
+    val grupoParaConvidar by viewModel.grupoParaConvidar.collectAsState()
+    val carregandoConvite by viewModel.carregandoConvite.collectAsState()
+    val grupoParaGerenciarMembros by viewModel.grupoParaGerenciarMembros.collectAsState()
+    val perfisMembros by viewModel.perfisMembros.collectAsState()
 
     LaunchedEffect(navegarParaResultadoSorteio) {
         if (navegarParaResultadoSorteio == true) {
@@ -183,6 +197,14 @@ fun GruposPeladaScreen(
             floatingActionButton = {
                 Column(horizontalAlignment = Alignment.End) {
                     FloatingActionButton(
+                        onClick = { viewModel.abrirDialogoEntrarComCodigo() },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        Icon(Icons.Filled.GroupAdd, contentDescription = "Entrar em um grupo com código")
+                    }
+                    FloatingActionButton(
                         onClick = { mostrarDialogoOpcoesSorteio = true }, // Modificado para abrir o diálogo de opções
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -201,10 +223,22 @@ fun GruposPeladaScreen(
                 }
             }
         ) { paddingValues ->
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+            ) {
+            if (gruposComoConvidado.isNotEmpty()) {
+                SecaoGruposConvidado(
+                    grupos = gruposComoConvidado,
+                    papelDe = { viewModel.papelNoGrupo(it) },
+                    perfisMembros = perfisMembros,
+                    onSairClick = { viewModel.sairDeGrupoCompartilhado(it) }
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
             ) {
                 if (carregando) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -244,24 +278,28 @@ fun GruposPeladaScreen(
                             onGrupoClick = navegarParaDetalheGrupo,
                             onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
                             onExcluirClick = { viewModel.excluirGrupo(it) },
-                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) }
+                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
+                            onConvidarClick = { viewModel.abrirConvite(it) }
                         )
                         TipoVisualizacao.CARDS -> CardsVisualizacao(
                             grupos = grupos,
                             onGrupoClick = navegarParaDetalheGrupo,
                             onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
                             onExcluirClick = { viewModel.excluirGrupo(it) },
-                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) }
+                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
+                            onConvidarClick = { viewModel.abrirConvite(it) }
                         )
                         TipoVisualizacao.MINIMALISTA -> MinimalistaVisualizacao(
                             grupos = grupos,
                             onGrupoClick = navegarParaDetalheGrupo,
                             onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
                             onExcluirClick = { viewModel.excluirGrupo(it) },
-                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) }
+                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
+                            onConvidarClick = { viewModel.abrirConvite(it) }
                         )
                     }
                 }
+            }
             }
         }
     }
@@ -358,6 +396,294 @@ fun GruposPeladaScreen(
             }
         )
     }
+
+    if (mostrarDialogoEntrarComCodigo) {
+        DialogoEntrarComCodigo(
+            convitePendente = convitePendente,
+            erro = erroEntrarComCodigo,
+            carregando = carregandoEntrarComCodigo,
+            onBuscarCodigo = { viewModel.buscarGrupoPorCodigo(it) },
+            onConfirmarEntrar = { viewModel.confirmarEntrarNoGrupo() },
+            onDismissRequest = { viewModel.fecharDialogoEntrarComCodigo() }
+        )
+    }
+
+    if (grupoParaConvidar != null) {
+        DialogoConvite(
+            grupo = grupoParaConvidar!!,
+            uidAtual = viewModel.uidAtual,
+            onCompartilhar = { texto -> compartilharTexto(texto, context) },
+            onGerenciarMembrosClick = { viewModel.abrirGerenciarMembros(grupoParaConvidar!!) },
+            onPermiteConviteChanged = { viewModel.atualizarPermiteConviteDeMembros(grupoParaConvidar!!, it) },
+            onDismissRequest = { viewModel.fecharConvite() }
+        )
+    }
+
+    if (carregandoConvite) {
+        Dialog(onDismissRequest = {}) {
+            Card { Box(Modifier.padding(32.dp)) { CircularProgressIndicator() } }
+        }
+    }
+
+    if (grupoParaGerenciarMembros != null) {
+        DialogoGerenciarMembros(
+            grupo = grupoParaGerenciarMembros!!,
+            uidAtual = viewModel.uidAtual,
+            perfis = perfisMembros,
+            onPromoverEditor = { viewModel.promoverParaEditor(grupoParaGerenciarMembros!!, it) },
+            onRemoverEditor = { viewModel.removerEditor(grupoParaGerenciarMembros!!, it) },
+            onRemoverMembro = { viewModel.removerMembro(grupoParaGerenciarMembros!!, it) },
+            onDismissRequest = { viewModel.fecharGerenciarMembros() }
+        )
+    }
+}
+
+@Composable
+fun SecaoGruposConvidado(
+    grupos: List<GrupoRemoto>,
+    papelDe: (GrupoRemoto) -> PapelGrupo,
+    perfisMembros: Map<String, UsuarioPerfil>,
+    onSairClick: (GrupoRemoto) -> Unit
+) {
+    Column(modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)) {
+        Text(
+            "Grupos que você participa",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            grupos.forEach { grupo ->
+                var showMenu by remember(grupo.id) { mutableStateOf(false) }
+                val papel = papelDe(grupo)
+                Card(
+                    modifier = Modifier.width(200.dp).clickable { showMenu = true },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(grupo.nome, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "De: ${perfisMembros[grupo.donoId]?.nome ?: grupo.donoNome}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(if (papel == PapelGrupo.EDITOR) "Editor" else "Membro") },
+                            modifier = Modifier.height(24.dp)
+                        )
+                        Text(
+                            "Sincronização completa chega em breve — por enquanto só o convite",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(text = { Text("Sair do grupo") }, onClick = {
+                        onSairClick(grupo)
+                        showMenu = false
+                    })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DialogoEntrarComCodigo(
+    convitePendente: GrupoRemoto?,
+    erro: String?,
+    carregando: Boolean,
+    onBuscarCodigo: (String) -> Unit,
+    onConfirmarEntrar: () -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    var codigo by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismissRequest) {
+        Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                if (convitePendente == null) {
+                    Text("Entrar em um grupo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Digite o código de convite que você recebeu:", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = codigo,
+                        onValueChange = { codigo = it.uppercase() },
+                        label = { Text("Código") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (erro != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(erro, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismissRequest) { Text("Cancelar") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = { onBuscarCodigo(codigo) }, enabled = !carregando) {
+                            if (carregando) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Text("Buscar")
+                        }
+                    }
+                } else {
+                    Text("Convite para grupo", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "${convitePendente.donoNome} te convidou para participar de \"${convitePendente.nome}\". Deseja aceitar?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Você vai poder ver jogadores, histórico e estatísticas do grupo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    if (erro != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(erro, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismissRequest) { Text("Recusar") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(onClick = onConfirmarEntrar, enabled = !carregando) {
+                            if (carregando) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            else Text("Aceitar")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DialogoConvite(
+    grupo: GrupoRemoto,
+    uidAtual: String?,
+    onCompartilhar: (String) -> Unit,
+    onGerenciarMembrosClick: () -> Unit,
+    onPermiteConviteChanged: (Boolean) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    val ehDono = uidAtual != null && uidAtual == grupo.donoId
+    Dialog(onDismissRequest = onDismissRequest) {
+        Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp)) {
+                Text("Convidar para \"${grupo.nome}\"", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Código de convite", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    grupo.codigoConvite,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        onCompartilhar(
+                            "🏆 Você foi convidado para a pelada \"${grupo.nome}\"!\n\n" +
+                                "Abra o Boleiragem, toque em \"Entrar em um grupo\" e digite o código: ${grupo.codigoConvite}"
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Compartilhar convite")
+                }
+                if (ehDono) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider()
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Membros também podem convidar", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Se desligado, só você e os editores podem compartilhar o código",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Switch(checked = grupo.permiteConviteDeMembros, onCheckedChange = onPermiteConviteChanged)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(onClick = onGerenciarMembrosClick, modifier = Modifier.fillMaxWidth()) {
+                        Text("Gerenciar membros (${grupo.membrosIds.size})")
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismissRequest) { Text("Fechar") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DialogoGerenciarMembros(
+    grupo: GrupoRemoto,
+    uidAtual: String?,
+    perfis: Map<String, UsuarioPerfil>,
+    onPromoverEditor: (String) -> Unit,
+    onRemoverEditor: (String) -> Unit,
+    onRemoverMembro: (String) -> Unit,
+    onDismissRequest: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismissRequest) {
+        Card(modifier = Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(16.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().padding(20.dp).heightIn(max = 500.dp)) {
+                Text("Membros de \"${grupo.nome}\"", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+                LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                    items(grupo.membrosIds.filter { it != grupo.donoId }) { uid ->
+                        val nome = perfis[uid]?.nome ?: uid.take(8)
+                        val ehEditor = grupo.editoresIds.contains(uid)
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(nome, style = MaterialTheme.typography.bodyMedium)
+                                Text(if (ehEditor) "Editor" else "Membro", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                            }
+                            if (ehEditor) {
+                                TextButton(onClick = { onRemoverEditor(uid) }) { Text("Rebaixar") }
+                            } else {
+                                TextButton(onClick = { onPromoverEditor(uid) }) { Text("Tornar editor") }
+                            }
+                            IconButton(onClick = { onRemoverMembro(uid) }) {
+                                Icon(Icons.Default.PersonRemove, contentDescription = "Remover do grupo")
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismissRequest) { Text("Fechar") }
+                }
+            }
+        }
+    }
 }
 
 // Novo Composable para o diálogo de opções de sorteio
@@ -442,7 +768,8 @@ fun ListaVisualizacao(
     onGrupoClick: (GrupoPelada) -> Unit,
     onEditarClick: (GrupoPelada) -> Unit,
     onExcluirClick: (GrupoPelada) -> Unit,
-    onSorteioRapidoClick: (GrupoPelada) -> Unit
+    onSorteioRapidoClick: (GrupoPelada) -> Unit,
+    onConvidarClick: (GrupoPelada) -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -455,7 +782,8 @@ fun ListaVisualizacao(
                 onClick = { onGrupoClick(grupo) },
                 onEditarClick = { onEditarClick(grupo) },
                 onExcluirClick = { onExcluirClick(grupo) },
-                onSorteioRapidoClick = { onSorteioRapidoClick(grupo) } // Este click pode ser removido dos itens individuais se o FAB for a única entrada
+                onSorteioRapidoClick = { onSorteioRapidoClick(grupo) }, // Este click pode ser removido dos itens individuais se o FAB for a única entrada
+                onConvidarClick = { onConvidarClick(grupo) }
             )
         }
     }
@@ -467,7 +795,8 @@ fun CardsVisualizacao(
     onGrupoClick: (GrupoPelada) -> Unit,
     onEditarClick: (GrupoPelada) -> Unit,
     onExcluirClick: (GrupoPelada) -> Unit,
-    onSorteioRapidoClick: (GrupoPelada) -> Unit
+    onSorteioRapidoClick: (GrupoPelada) -> Unit,
+    onConvidarClick: (GrupoPelada) -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -481,7 +810,8 @@ fun CardsVisualizacao(
                 onClick = { onGrupoClick(grupo) },
                 onEditarClick = { onEditarClick(grupo) },
                 onExcluirClick = { onExcluirClick(grupo) },
-                onSorteioRapidoClick = { onSorteioRapidoClick(grupo) } // Idem
+                onSorteioRapidoClick = { onSorteioRapidoClick(grupo) }, // Idem
+                onConvidarClick = { onConvidarClick(grupo) }
             )
         }
     }
@@ -493,7 +823,8 @@ fun MinimalistaVisualizacao(
     onGrupoClick: (GrupoPelada) -> Unit,
     onEditarClick: (GrupoPelada) -> Unit,
     onExcluirClick: (GrupoPelada) -> Unit,
-    onSorteioRapidoClick: (GrupoPelada) -> Unit
+    onSorteioRapidoClick: (GrupoPelada) -> Unit,
+    onConvidarClick: (GrupoPelada) -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -507,7 +838,8 @@ fun MinimalistaVisualizacao(
                 onClick = { onGrupoClick(grupo) },
                 onEditarClick = { onEditarClick(grupo) },
                 onExcluirClick = { onExcluirClick(grupo) },
-                onSorteioRapidoClick = { onSorteioRapidoClick(grupo) } // Idem
+                onSorteioRapidoClick = { onSorteioRapidoClick(grupo) }, // Idem
+                onConvidarClick = { onConvidarClick(grupo) }
             )
         }
     }
@@ -519,7 +851,8 @@ fun GrupoItemLista(
     onClick: () -> Unit,
     onEditarClick: () -> Unit,
     onExcluirClick: () -> Unit,
-    onSorteioRapidoClick: () -> Unit // Considerar remover se o FAB é a única entrada para sorteio
+    onSorteioRapidoClick: () -> Unit, // Considerar remover se o FAB é a única entrada para sorteio
+    onConvidarClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -572,6 +905,10 @@ fun GrupoItemLista(
                     //     onSorteioRapidoClick()
                     //     showMenu = false
                     // })
+                    DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
+                        onConvidarClick()
+                        showMenu = false
+                    })
                     DropdownMenuItem(text = { Text("Editar") }, onClick = {
                         onEditarClick()
                         showMenu = false
@@ -592,7 +929,8 @@ fun GrupoItemCard(
     onClick: () -> Unit,
     onEditarClick: () -> Unit,
     onExcluirClick: () -> Unit,
-    onSorteioRapidoClick: () -> Unit // Considerar remover
+    onSorteioRapidoClick: () -> Unit, // Considerar remover
+    onConvidarClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -621,6 +959,10 @@ fun GrupoItemCard(
                         //     onSorteioRapidoClick()
                         //     showMenu = false
                         // })
+                        DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
+                            onConvidarClick()
+                            showMenu = false
+                        })
                         DropdownMenuItem(text = { Text("Editar") }, onClick = {
                             onEditarClick()
                             showMenu = false
@@ -663,7 +1005,8 @@ fun GrupoItemMinimalista(
     onClick: () -> Unit,
     onEditarClick: () -> Unit,
     onExcluirClick: () -> Unit,
-    onSorteioRapidoClick: () -> Unit // Considerar remover
+    onSorteioRapidoClick: () -> Unit, // Considerar remover
+    onConvidarClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -694,6 +1037,10 @@ fun GrupoItemMinimalista(
                     //     onSorteioRapidoClick()
                     //     showMenu = false
                     // })
+                    DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
+                        onConvidarClick()
+                        showMenu = false
+                    })
                     DropdownMenuItem(text = { Text("Editar") }, onClick = {
                         onEditarClick()
                         showMenu = false

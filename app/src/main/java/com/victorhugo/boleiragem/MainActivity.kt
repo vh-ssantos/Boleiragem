@@ -43,12 +43,21 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.google.firebase.auth.FirebaseAuth
 import com.victorhugo.boleiragem.navigation.BoleiragemBottomNavigationBar
 import com.victorhugo.boleiragem.navigation.NavDestinations
+import com.victorhugo.boleiragem.ui.screens.cadastro.CadastroJogadoresScreen
+import com.victorhugo.boleiragem.ui.screens.cadastro.DetalheJogadorScreen
+import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoPontuacaoScreen
+import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoTimesScreen
+import com.victorhugo.boleiragem.ui.screens.configuracao.GerenciadorPerfisScreen
 import com.victorhugo.boleiragem.ui.screens.grupos.GruposPeladaScreen
+import com.victorhugo.boleiragem.ui.screens.historico.HistoricoScreen
 import com.victorhugo.boleiragem.ui.screens.login.LoginScreen
 import com.victorhugo.boleiragem.ui.screens.sorteio.ResultadoSorteioScreen
+import com.victorhugo.boleiragem.ui.screens.sorteio.SorteioTimesScreen
 import com.victorhugo.boleiragem.ui.screens.splash.SplashScreen
+import com.victorhugo.boleiragem.ui.screens.times.TimesAtuaisScreen
 import com.victorhugo.boleiragem.ui.theme.BoleiragemTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -115,12 +124,17 @@ fun BoleiragemApp() {
         showSplashScreen -> {
             SplashScreen(onNavigateToHome = {
                 showSplashScreen = false
-                showLoginScreen = true
+                // Se já existe uma sessão do Firebase Auth ativa, pula a tela de login
+                if (FirebaseAuth.getInstance().currentUser != null) {
+                    showGruposScreen = true
+                } else {
+                    showLoginScreen = true
+                }
             })
         }
         showLoginScreen -> {
             LoginScreen(
-                onLoginClick = {
+                onLoginSucesso = {
                     showLoginScreen = false
                     showGruposScreen = true
                 },
@@ -145,6 +159,7 @@ fun BoleiragemApp() {
                     }
                 },
                 onSairClick = { // Implementação do onSairClick
+                    FirebaseAuth.getInstance().signOut()
                     showGruposScreen = false
                     showLoginScreen = true
                     showResultadoSorteioRapido = false // Garante que outras telas sejam resetadas
@@ -204,7 +219,7 @@ fun MainScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
-        pageCount = { 6 } // Ajuste pageCount conforme o número de abas
+        pageCount = { 5 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas
     )
 
     LaunchedEffect(pagerState.currentPage) {
@@ -271,9 +286,52 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding) // Aplicar innerPadding aqui
-            ) {
-                // O conteúdo das suas abas/páginas vai aqui,
-                // por exemplo, usando um when(selectedTabIndex) ou similar
+            ) { page ->
+                when (page) {
+                    0 -> CadastroJogadoresScreen(
+                        grupoId = grupoId,
+                        onNavigateToDetalheJogador = { jogadorId ->
+                            isSecondaryScreen = true
+                            secondaryScreenContent = {
+                                DetalheJogadorScreen(
+                                    jogadorId = jogadorId,
+                                    onBackClick = { isSecondaryScreen = false }
+                                )
+                            }
+                        }
+                    )
+                    1 -> ConfiguracaoTimesScreen(
+                        grupoId = grupoId,
+                        onNavigateToConfiguracaoPontuacao = {
+                            isSecondaryScreen = true
+                            secondaryScreenContent = {
+                                ConfiguracaoPontuacaoScreen(
+                                    onBackClick = { isSecondaryScreen = false }
+                                )
+                            }
+                        },
+                        onNavigateToGerenciadorPerfis = {
+                            isSecondaryScreen = true
+                            secondaryScreenContent = {
+                                GerenciadorPerfisScreen(
+                                    grupoId = grupoId,
+                                    onNavigateBack = { isSecondaryScreen = false }
+                                )
+                            }
+                        }
+                    )
+                    2 -> SorteioTimesScreen(
+                        grupoId = grupoId,
+                        onSorteioRealizado = {
+                            scope.launch { pagerState.animateScrollToPage(3) }
+                        },
+                        onNavigateToHistorico = {
+                            scope.launch { pagerState.animateScrollToPage(4) }
+                        }
+                    )
+                    3 -> TimesAtuaisScreen(grupoId = grupoId)
+                    4 -> HistoricoScreen(grupoId = grupoId)
+                }
             }
         }
     }

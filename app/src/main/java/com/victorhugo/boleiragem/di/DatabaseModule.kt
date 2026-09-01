@@ -40,7 +40,8 @@ object DatabaseModule {
             BoleiragemDatabase.MIGRATION_9_10,
             BoleiragemDatabase.MIGRATION_10_11,
             BoleiragemDatabase.MIGRATION_11_12, // Adicionando a migração para diasSemana
-            BoleiragemDatabase.MIGRATION_12_13 // Nova migração para grupoId
+            BoleiragemDatabase.MIGRATION_12_13, // Nova migração para grupoId
+            BoleiragemDatabase.MIGRATION_13_14 // Vínculo com o Firestore (firestoreId)
         )
         .build()
     }

@@ -75,7 +75,10 @@ data class GrupoPelada(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val endereco: String? = null,
-    val localNome: String? = null
+    val localNome: String? = null,
+    // ID do documento correspondente na coleção "grupos" do Firestore, quando este grupo foi compartilhado.
+    // Null = grupo ainda é só local (nunca convidou ninguém).
+    val firestoreId: String? = null
 ) {
     fun getHorarioFormatado(): String {
         return try {

@@ -57,9 +57,7 @@ fun BoleiragemNavHost(
 
         composable(NavDestinations.Login.route) {
             LoginScreen(
-                onLoginClick = {
-                    // TODO: Implementar lógica de login real se necessário
-                    // Por enquanto, navega para a tela principal
+                onLoginSucesso = {
                     navController.navigate(NavDestinations.CadastroJogadores.route) {
                         popUpTo(NavDestinations.Login.route) { inclusive = true }
                         launchSingleTop = true

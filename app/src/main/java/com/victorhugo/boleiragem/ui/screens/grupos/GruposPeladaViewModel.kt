@@ -6,15 +6,21 @@ import androidx.lifecycle.viewModelScope
 import com.victorhugo.boleiragem.data.model.ConfiguracaoSorteio
 import com.victorhugo.boleiragem.data.model.DiaSemana
 import com.victorhugo.boleiragem.data.model.GrupoPelada
+import com.victorhugo.boleiragem.data.model.GrupoRemoto
 import com.victorhugo.boleiragem.data.model.Jogador
+import com.victorhugo.boleiragem.data.model.PapelGrupo
 import com.victorhugo.boleiragem.data.model.PosicaoJogador // Import adicionado
 import com.victorhugo.boleiragem.data.model.ResultadoSorteio
 import com.victorhugo.boleiragem.data.model.TipoRecorrencia
 import com.victorhugo.boleiragem.data.model.Time
+import com.victorhugo.boleiragem.data.model.UsuarioPerfil
+import com.victorhugo.boleiragem.data.repository.AuthRepository
 import com.victorhugo.boleiragem.data.repository.ConfiguracaoRepository
 import com.victorhugo.boleiragem.data.repository.GrupoPeladaRepository
+import com.victorhugo.boleiragem.data.repository.GrupoRemotoRepository
 import com.victorhugo.boleiragem.data.repository.JogadorRepository
 import com.victorhugo.boleiragem.data.repository.SorteioRepository
+import com.victorhugo.boleiragem.data.repository.UsuarioRepository
 import com.victorhugo.boleiragem.domain.SorteioUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +38,10 @@ class GruposPeladaViewModel @Inject constructor(
     private val jogadorRepository: JogadorRepository,
     private val configuracaoRepository: ConfiguracaoRepository,
     private val sorteioUseCase: SorteioUseCase,
-    private val sorteioRepository: SorteioRepository
+    private val sorteioRepository: SorteioRepository,
+    private val grupoRemotoRepository: GrupoRemotoRepository,
+    private val authRepository: AuthRepository,
+    private val usuarioRepository: UsuarioRepository
 ) : ViewModel() {
 
     private val _grupos = MutableStateFlow<List<GrupoPelada>>(emptyList())
@@ -111,8 +120,215 @@ class GruposPeladaViewModel @Inject constructor(
     private val _isSorteioDeListaColada = MutableStateFlow(false)
     val isSorteioDeListaColada: StateFlow<Boolean> = _isSorteioDeListaColada.asStateFlow()
 
+    // --- Grupos compartilhados (Firestore) ---
+
+    // Grupos onde o usuário logado é membro/editor mas NÃO é o dono (ou seja, não existem localmente
+    // no Room deste dispositivo — foram criados por outra pessoa e entramos via código de convite).
+    private val _gruposComoConvidado = MutableStateFlow<List<GrupoRemoto>>(emptyList())
+    val gruposComoConvidado: StateFlow<List<GrupoRemoto>> = _gruposComoConvidado.asStateFlow()
+
+    private val _mostrarDialogoEntrarComCodigo = MutableStateFlow(false)
+    val mostrarDialogoEntrarComCodigo: StateFlow<Boolean> = _mostrarDialogoEntrarComCodigo.asStateFlow()
+
+    private val _erroEntrarComCodigo = MutableStateFlow<String?>(null)
+    val erroEntrarComCodigo: StateFlow<String?> = _erroEntrarComCodigo.asStateFlow()
+
+    private val _carregandoEntrarComCodigo = MutableStateFlow(false)
+    val carregandoEntrarComCodigo: StateFlow<Boolean> = _carregandoEntrarComCodigo.asStateFlow()
+
+    // Grupo encontrado pelo código, aguardando confirmação do usuário ("Fulano te convidou para X")
+    private val _convitePendente = MutableStateFlow<GrupoRemoto?>(null)
+    val convitePendente: StateFlow<GrupoRemoto?> = _convitePendente.asStateFlow()
+
+    private val _grupoParaConvidar = MutableStateFlow<GrupoRemoto?>(null)
+    val grupoParaConvidar: StateFlow<GrupoRemoto?> = _grupoParaConvidar.asStateFlow()
+
+    private val _carregandoConvite = MutableStateFlow(false)
+    val carregandoConvite: StateFlow<Boolean> = _carregandoConvite.asStateFlow()
+
+    private val _grupoParaGerenciarMembros = MutableStateFlow<GrupoRemoto?>(null)
+    val grupoParaGerenciarMembros: StateFlow<GrupoRemoto?> = _grupoParaGerenciarMembros.asStateFlow()
+
+    private val _perfisMembros = MutableStateFlow<Map<String, UsuarioPerfil>>(emptyMap())
+    val perfisMembros: StateFlow<Map<String, UsuarioPerfil>> = _perfisMembros.asStateFlow()
+
+    val uidAtual: String? get() = authRepository.usuarioAtual?.uid
+
     init {
         carregarGrupos()
+        observarGruposCompartilhados()
+        salvarPerfilUsuarioLogado()
+    }
+
+    private fun salvarPerfilUsuarioLogado() {
+        val usuario = authRepository.usuarioAtual ?: return
+        viewModelScope.launch {
+            try { usuarioRepository.salvarPerfil(usuario) }
+            catch (e: Exception) { Log.e("GruposVM", "Erro ao salvar perfil do usuário", e) }
+        }
+    }
+
+    private fun observarGruposCompartilhados() {
+        val uid = uidAtual ?: return // Modo convidado ("entrar sem conta") não tem grupos remotos
+        viewModelScope.launch {
+            try {
+                grupoRemotoRepository.observarMeusGrupos(uid).collect { todos ->
+                    // Só entram aqui os grupos onde o usuário NÃO é dono - os que ele criou já aparecem
+                    // via Room em `grupos` (fonte local, sempre disponível offline).
+                    val comoConvidado = todos.filter { it.donoId != uid }
+                    _gruposComoConvidado.value = comoConvidado
+                    val todosUids = comoConvidado.flatMap { listOf(it.donoId) + it.editoresIds + it.membrosIds }.distinct()
+                    if (todosUids.isNotEmpty()) {
+                        _perfisMembros.value = usuarioRepository.buscarPerfis(todosUids)
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("GruposVM", "Erro ao observar grupos compartilhados", e)
+            }
+        }
+    }
+
+    fun papelNoGrupo(grupo: GrupoRemoto): PapelGrupo = uidAtual?.let { grupo.papelDe(it) } ?: PapelGrupo.MEMBRO
+
+    fun abrirDialogoEntrarComCodigo() {
+        _erroEntrarComCodigo.value = null
+        _convitePendente.value = null
+        _mostrarDialogoEntrarComCodigo.value = true
+    }
+
+    fun fecharDialogoEntrarComCodigo() {
+        _mostrarDialogoEntrarComCodigo.value = false
+        _convitePendente.value = null
+        _erroEntrarComCodigo.value = null
+    }
+
+    fun buscarGrupoPorCodigo(codigo: String) {
+        if (codigo.isBlank()) {
+            _erroEntrarComCodigo.value = "Digite um código"
+            return
+        }
+        val uid = uidAtual
+        if (uid == null) {
+            _erroEntrarComCodigo.value = "Entre com uma conta para participar de um grupo de outra pessoa"
+            return
+        }
+        viewModelScope.launch {
+            _carregandoEntrarComCodigo.value = true
+            _erroEntrarComCodigo.value = null
+            try {
+                val grupo = grupoRemotoRepository.buscarPorCodigo(codigo)
+                if (grupo == null) {
+                    _erroEntrarComCodigo.value = "Código não encontrado. Confira e tente de novo."
+                } else if (grupo.membrosIds.contains(uid)) {
+                    _erroEntrarComCodigo.value = "Você já participa desse grupo"
+                } else {
+                    _convitePendente.value = grupo
+                }
+            } catch (e: Exception) {
+                Log.e("GruposVM", "Erro ao buscar grupo por código", e)
+                _erroEntrarComCodigo.value = "Não foi possível buscar o código. Tente novamente."
+            } finally {
+                _carregandoEntrarComCodigo.value = false
+            }
+        }
+    }
+
+    fun confirmarEntrarNoGrupo() {
+        val grupo = _convitePendente.value ?: return
+        val uid = uidAtual ?: return
+        viewModelScope.launch {
+            _carregandoEntrarComCodigo.value = true
+            try {
+                grupoRemotoRepository.entrarNoGrupo(grupo.id, uid)
+                fecharDialogoEntrarComCodigo()
+            } catch (e: Exception) {
+                Log.e("GruposVM", "Erro ao entrar no grupo", e)
+                _erroEntrarComCodigo.value = "Não foi possível entrar no grupo. Tente novamente."
+            } finally {
+                _carregandoEntrarComCodigo.value = false
+            }
+        }
+    }
+
+    fun sairDeGrupoCompartilhado(grupo: GrupoRemoto) {
+        val uid = uidAtual ?: return
+        viewModelScope.launch {
+            try { grupoRemotoRepository.sairDoGrupo(grupo.id, uid) }
+            catch (e: Exception) { Log.e("GruposVM", "Erro ao sair do grupo", e) }
+        }
+    }
+
+    /**
+     * Abre o convite de um grupo local (do dono). Se o grupo ainda não foi compartilhado
+     * (firestoreId nulo), cria o documento no Firestore agora ("compartilhar sob demanda").
+     */
+    fun abrirConvite(grupoLocal: GrupoPelada) {
+        val uid = uidAtual
+        if (uid == null) {
+            Log.w("GruposVM", "Tentativa de convidar sem estar logado")
+            return
+        }
+        viewModelScope.launch {
+            _carregandoConvite.value = true
+            try {
+                val remoto = if (grupoLocal.firestoreId != null) {
+                    grupoRemotoRepository.buscarPorId(grupoLocal.firestoreId)
+                } else {
+                    val donoNome = authRepository.usuarioAtual?.displayName?.takeIf { it.isNotBlank() }
+                        ?: authRepository.usuarioAtual?.email ?: "Você"
+                    val criado = grupoRemotoRepository.criarGrupoCompartilhado(
+                        donoId = uid,
+                        donoNome = donoNome,
+                        nome = grupoLocal.nome,
+                        local = grupoLocal.local,
+                        horario = grupoLocal.horario,
+                        descricao = grupoLocal.descricao,
+                        imagemUrl = grupoLocal.imagemUrl
+                    )
+                    grupoPeladaRepository.atualizarGrupo(grupoLocal.copy(firestoreId = criado.id, usuarioId = uid, compartilhado = true))
+                    carregarGrupos()
+                    criado
+                }
+                _grupoParaConvidar.value = remoto
+            } catch (e: Exception) {
+                Log.e("GruposVM", "Erro ao gerar convite", e)
+            } finally {
+                _carregandoConvite.value = false
+            }
+        }
+    }
+
+    fun fecharConvite() { _grupoParaConvidar.value = null }
+
+    fun abrirGerenciarMembros(grupo: GrupoRemoto) { _grupoParaGerenciarMembros.value = grupo }
+    fun fecharGerenciarMembros() { _grupoParaGerenciarMembros.value = null }
+
+    fun promoverParaEditor(grupo: GrupoRemoto, uidMembro: String) {
+        viewModelScope.launch {
+            try { grupoRemotoRepository.promoverParaEditor(grupo.id, uidMembro) }
+            catch (e: Exception) { Log.e("GruposVM", "Erro ao promover editor", e) }
+        }
+    }
+
+    fun removerEditor(grupo: GrupoRemoto, uidMembro: String) {
+        viewModelScope.launch {
+            try { grupoRemotoRepository.removerEditor(grupo.id, uidMembro) }
+            catch (e: Exception) { Log.e("GruposVM", "Erro ao remover editor", e) }
+        }
+    }
+
+    fun removerMembro(grupo: GrupoRemoto, uidMembro: String) {
+        viewModelScope.launch {
+            try { grupoRemotoRepository.removerMembro(grupo.id, uidMembro) }
+            catch (e: Exception) { Log.e("GruposVM", "Erro ao remover membro", e) }
+        }
+    }
+
+    fun atualizarPermiteConviteDeMembros(grupo: GrupoRemoto, permite: Boolean) {
+        viewModelScope.launch {
+            try { grupoRemotoRepository.atualizarPermiteConviteDeMembros(grupo.id, permite) }
+            catch (e: Exception) { Log.e("GruposVM", "Erro ao atualizar permissão de convite", e) }
+        }
     }
 
     fun carregarGrupos() {

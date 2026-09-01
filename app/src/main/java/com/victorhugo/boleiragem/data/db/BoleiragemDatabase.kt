@@ -30,7 +30,7 @@ import java.util.Locale
         HistoricoPelada::class,
         GrupoPelada::class
     ],
-    version = 13, // Incrementado de 12 para 13 para a nova migração do grupoId
+    version = 14, // Incrementado de 13 para 14 para o vínculo com o Firestore (firestoreId)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -380,6 +380,14 @@ abstract class BoleiragemDatabase : RoomDatabase() {
 
                 // Renomear a tabela temporária
                 database.execSQL("ALTER TABLE configuracao_sorteio_temp RENAME TO configuracao_sorteio")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Coluna que vincula um grupo local ao documento correspondente na coleção "grupos" do Firestore,
+                // quando o grupo é compartilhado com outras pessoas. Null = grupo ainda é só local.
+                database.execSQL("ALTER TABLE grupo_pelada ADD COLUMN firestoreId TEXT DEFAULT NULL")
             }
         }
     }
