@@ -16,8 +16,21 @@ Native Android app (Kotlin + Jetpack Compose) to manage informal soccer games ("
 ```
 ./gradlew compileDebugKotlin   # fast compile check
 ./gradlew installDebug         # build + install to connected device/emulator (adb devices to check)
+./gradlew appDistributionUploadDebug   # build + upload to Firebase App Distribution (see below)
 ```
 Windows box, Git Bash available via the Bash tool. `adb` works from PATH.
+
+## Distributing test builds (Firebase App Distribution, added 2026-09-01)
+
+The user wants to hand pre-release builds to friends for testing without going through the Play Store. Set up **Firebase App Distribution** (not a custom OTA-update pipeline — considered and explicitly rejected as reinventing something Firebase already gives for free; see chat history if that reasoning needs revisiting).
+
+- Plugin: `com.google.firebase.appdistribution` (root `build.gradle.kts` classpath `apply false`, applied for real in `app/build.gradle.kts`). Config lives in `app/build.gradle.kts`'s `android.buildTypes.debug { firebaseAppDistribution { ... } }` block — **note the required import** `com.google.firebase.appdistribution.gradle.firebaseAppDistribution` at the top of that file; without it Gradle resolves the deprecated top-level extension instead and silently misconfigures (this bit us once — the block ran but wasn't actually the per-buildType one).
+- Testers are managed by a **Firebase Console group named `testadores`** (App Distribution → Testers & Groups → group, not the flat "all testers" list) — the Gradle config references `groups = "testadores"` by name, so adding/removing testers never touches code, just the console. If the group is ever renamed, update the `groups` value in `app/build.gradle.kts` to match.
+- Auth: a Firebase Admin SDK **service account JSON key** (Firebase Console → Project Settings → Service Accounts → "Gerar nova chave privada" — the Node/Java/Python/Go radio buttons on that page only change a code-sample snippet, they don't affect the generated key, any selection is fine). This key grants broad admin access to the whole Firebase project — treat it like a password.
+  - Lives **outside the repo entirely** on this machine (`C:/Users/vitch/Desktop/Boleiragem app/boleiragem-964c9-firebase-adminsdk-fbsvc-*.json`), referenced by an absolute path via a `firebase.serviceAccountFile=...` line in `local.properties` (gitignored, same mechanism as `sdk.dir`). `app/build.gradle.kts` reads it with a small `java.util.Properties` loader and only sets `serviceCredentialsFile` if the property is present — so a machine without the key can still run `assembleDebug`/`installDebug` fine, and only `appDistributionUpload*` fails (with a clear "Could not find credentials" error, not a build-wide break).
+  - `.gitignore` also has defensive patterns (`*serviceAccount*.json`, `*service-account*.json`) in case a differently-named key ever lands inside the repo tree — but the actual key on this machine doesn't match those patterns (Firebase's default download name is `<project>-firebase-adminsdk-<id>.json`), so the real safety net is that it's stored outside the repo, not the gitignore pattern. Don't assume the gitignore alone protects a key placed inside the repo with Firebase's default filename.
+- Command: `./gradlew appDistributionUploadDebug` builds and uploads in one step; testers in the `testadores` group get an email/notification automatically. `releaseNotes` is currently a hardcoded string ("Build de teste gerada localmente.") — fine for now, could be parametrized via a `-P` project property later if the user wants per-build notes.
+- Verified working 2026-09-01: first attempt failed on missing credentials (expected, key not yet configured), second failed with `[404] Requested entity was not found` because `groups = "testadores"` referenced a group that didn't exist yet in the console (only individual testers existed, no group) — fixed by having the user create that group in the console. Third attempt succeeded ("Re-uploaded already existing release 1.3.1 (1) successfully").
 
 ## Structure
 

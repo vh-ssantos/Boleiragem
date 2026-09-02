@@ -33,5 +33,9 @@ render.experimental.xml
 # Google Services (e.g. APIs or Firebase)
 google-services.json
 
+# Firebase service account keys (App Distribution, etc.) - never commit these
+*serviceAccount*.json
+*service-account*.json
+
 # Android Profiling
 *.hprof

@@ -1,3 +1,6 @@
+import com.google.firebase.appdistribution.gradle.firebaseAppDistribution
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -5,7 +8,17 @@ plugins {
     id("kotlin-kapt")
     id("com.google.dagger.hilt.android")
     id("com.google.gms.google-services")
+    id("com.google.firebase.appdistribution")
 }
+
+// Caminho da chave de conta de serviço usada pelo App Distribution, lido do local.properties
+// (nunca vai pro git - assim como sdk.dir). Sem essa chave, `assembleDebug` funciona normal,
+// só as tasks appDistributionUpload* falham na hora de autenticar.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val firebaseServiceAccountFile: String? = localProperties.getProperty("firebase.serviceAccountFile")
 
 android {
     namespace = "com.victorhugo.boleiragem"
@@ -22,6 +35,16 @@ android {
     }
 
     buildTypes {
+        debug {
+            firebaseAppDistribution {
+                artifactType = "APK"
+                groups = "testadores"
+                releaseNotes = "Build de teste gerada localmente."
+                if (firebaseServiceAccountFile != null) {
+                    serviceCredentialsFile = firebaseServiceAccountFile
+                }
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
