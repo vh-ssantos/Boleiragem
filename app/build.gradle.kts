@@ -20,6 +20,21 @@ val localProperties = Properties().apply {
 }
 val firebaseServiceAccountFile: String? = localProperties.getProperty("firebase.serviceAccountFile")
 
+// versionCode automático = número de commits no git. Garante que toda build nova tem um código
+// maior que a anterior, sem precisar lembrar de incrementar na mão - importante pro App Distribution
+// e pra checagem de atualização in-app conseguirem distinguir "essa build é mais nova que a instalada".
+fun gitCommitCount(): Int {
+    return try {
+        val processo = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(rootProject.projectDir)
+            .redirectErrorStream(true)
+            .start()
+        processo.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 1
+    } catch (e: Exception) {
+        1
+    }
+}
+
 android {
     namespace = "com.victorhugo.boleiragem"
     compileSdk = 36
@@ -28,7 +43,7 @@ android {
         applicationId = "com.victorhugo.boleiragem"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
+        versionCode = gitCommitCount()
         versionName = "1.3.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -75,6 +90,9 @@ dependencies {
     implementation(libs.firebase.analytics.ktx)
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
+    // Só em debug: checagem de atualização in-app via App Distribution.
+    // Não entra em release/Play de propósito (ver util/AppUpdateChecker.kt nos source sets debug/release).
+    debugImplementation(libs.firebase.appdistribution.runtime)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)

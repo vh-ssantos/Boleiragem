@@ -59,6 +59,7 @@ import com.victorhugo.boleiragem.ui.screens.sorteio.SorteioTimesScreen
 import com.victorhugo.boleiragem.ui.screens.splash.SplashScreen
 import com.victorhugo.boleiragem.ui.screens.times.TimesAtuaisScreen
 import com.victorhugo.boleiragem.ui.theme.BoleiragemTheme
+import com.victorhugo.boleiragem.util.AppUpdateChecker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -86,6 +87,11 @@ class MainActivity : ComponentActivity() {
                 BoleiragemApp()
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppUpdateChecker.verificarAtualizacao(this)
     }
 
     private fun requestLocationPermissions() {
