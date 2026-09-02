@@ -62,7 +62,11 @@ service cloud.firestore {
     }
 
     match /grupos/{grupoId} {
-      allow read: if ehMembro(resource) || podeEditarConteudo(resource);
+      // Leitura liberada pra qualquer usuário autenticado, não só membros: é o único jeito de alguém
+      // buscar um grupo pelo código de convite ANTES de entrar (nesse momento ele ainda não é membro).
+      // O código de 6 caracteres já funciona como o "segredo" que protege o grupo - o documento em si
+      // não guarda nada sensível além de nome/local/horário/dono.
+      allow read: if autenticado();
       allow create: if autenticado() && request.resource.data.donoId == request.auth.uid;
       allow update: if podeEditarConteudo(resource)
         || estaEntrandoNoGrupo(resource, request.resource)
