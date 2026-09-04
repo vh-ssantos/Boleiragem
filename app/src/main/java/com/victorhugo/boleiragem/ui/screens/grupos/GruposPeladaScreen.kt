@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.GridView
@@ -136,13 +135,7 @@ fun GruposPeladaScreen(
                 CenterAlignedTopAppBar(
                     title = { Text("Minhas Peladas") },
                     navigationIcon = {
-                        IconButton(onClick = onSairClick) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                                contentDescription = "Sair",
-                                tint = MaterialTheme.colorScheme.onPrimary
-                            )
-                        }
+                        com.victorhugo.boleiragem.ui.screens.perfil.PerfilAvatarButton(onSairClick = onSairClick)
                     },
                     actions = {
                         SingleChoiceSegmentedButtonRow(

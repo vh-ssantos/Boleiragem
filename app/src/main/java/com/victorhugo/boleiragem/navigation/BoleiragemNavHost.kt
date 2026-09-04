@@ -33,7 +33,6 @@ sealed class NavDestinations(val route: String) {
         fun createRoute(grupoId: Long) = "gerenciador_perfis_screen/$grupoId"
     }
     object Estatisticas : NavDestinations("estatisticas_screen")
-    object Perfil : NavDestinations("perfil_screen")
 }
 
 @Composable

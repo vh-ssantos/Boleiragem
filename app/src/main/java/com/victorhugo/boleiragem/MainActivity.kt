@@ -53,7 +53,7 @@ import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoPontuacaoSc
 import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoTimesScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.GerenciadorPerfisScreen
 import com.victorhugo.boleiragem.ui.screens.grupos.GrupoSyncViewModel
-import com.victorhugo.boleiragem.ui.screens.perfil.PerfilScreen
+import com.victorhugo.boleiragem.ui.screens.perfil.PerfilAvatarButton
 import com.victorhugo.boleiragem.ui.screens.grupos.GruposPeladaScreen
 import com.victorhugo.boleiragem.ui.screens.historico.HistoricoScreen
 import com.victorhugo.boleiragem.ui.screens.login.LoginScreen
@@ -237,7 +237,7 @@ fun MainScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
-        pageCount = { 6 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas, Perfil
+        pageCount = { 5 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas
     )
 
     // Fase 2: enquanto este grupo está aberto, mantém a sincronização com o Firestore ativa
@@ -278,6 +278,9 @@ fun MainScreen(
                                 tint = Color.White
                             )
                         }
+                    },
+                    actions = {
+                        PerfilAvatarButton(onSairClick = onSairClick)
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -357,7 +360,6 @@ fun MainScreen(
                     )
                     3 -> TimesAtuaisScreen(grupoId = grupoId)
                     4 -> HistoricoScreen(grupoId = grupoId)
-                    5 -> PerfilScreen(onSairClick = onSairClick)
                 }
             }
         }

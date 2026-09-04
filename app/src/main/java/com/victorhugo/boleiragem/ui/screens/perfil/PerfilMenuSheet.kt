@@ -6,16 +6,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
@@ -24,10 +23,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.victorhugo.boleiragem.data.model.PosicaoJogador
@@ -49,37 +51,86 @@ import com.victorhugo.boleiragem.ui.common.StatTile
 private fun PosicaoJogador.nomeExibicao(): String =
     name.lowercase().split("_").joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
 
+/**
+ * Avatar clicável para o TopAppBar (padrão Nubank) — acessível tanto em "Minhas Peladas" quanto
+ * dentro de um grupo, ao contrário da antiga aba "Perfil" que só existia dentro de um grupo. Ao
+ * tocar, abre um bottom sheet com os dados do usuário, "Meu Histórico" e "Sair da conta".
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PerfilScreen(
+fun PerfilAvatarButton(
     viewModel: PerfilViewModel = hiltViewModel(),
-    onSairClick: () -> Unit = {}
+    onSairClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    var mostrarMenu by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
 
-    Scaffold { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+    IconButton(onClick = { mostrarMenu = true }) {
+        AvatarIniciais(nome = uiState.nome, tamanho = 32.dp)
+    }
+
+    if (mostrarMenu) {
+        ModalBottomSheet(
+            onDismissRequest = { mostrarMenu = false },
+            sheetState = sheetState
         ) {
-            when {
-                uiState.carregando -> {
+            PerfilMenuConteudo(
+                uiState = uiState,
+                onNomeChange = viewModel::onNomeChange,
+                onPosicaoChange = viewModel::onPosicaoChange,
+                onIdadeChange = viewModel::onIdadeChange,
+                onSalvarClick = viewModel::salvar,
+                onSairClick = {
+                    mostrarMenu = false
+                    onSairClick()
+                },
+                onFecharClick = { mostrarMenu = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PerfilMenuConteudo(
+    uiState: PerfilUiState,
+    onNomeChange: (String) -> Unit,
+    onPosicaoChange: (PosicaoJogador) -> Unit,
+    onIdadeChange: (String) -> Unit,
+    onSalvarClick: () -> Unit,
+    onSairClick: () -> Unit,
+    onFecharClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 24.dp)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            IconButton(onClick = onFecharClick, modifier = Modifier.align(Alignment.CenterEnd)) {
+                Icon(imageVector = Icons.Filled.Close, contentDescription = "Fechar")
+            }
+        }
+
+        when {
+            uiState.carregando -> {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp)) {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 }
-                !uiState.autenticado -> {
-                    PerfilConvidado(modifier = Modifier.align(Alignment.Center))
-                }
-                else -> {
-                    PerfilAutenticado(
-                        uiState = uiState,
-                        onNomeChange = viewModel::onNomeChange,
-                        onPosicaoChange = viewModel::onPosicaoChange,
-                        onIdadeChange = viewModel::onIdadeChange,
-                        onSalvarClick = viewModel::salvar,
-                        onSairClick = onSairClick
-                    )
-                }
+            }
+            !uiState.autenticado -> {
+                PerfilConvidado()
+            }
+            else -> {
+                PerfilAutenticado(
+                    uiState = uiState,
+                    onNomeChange = onNomeChange,
+                    onPosicaoChange = onPosicaoChange,
+                    onIdadeChange = onIdadeChange,
+                    onSalvarClick = onSalvarClick,
+                    onSairClick = onSairClick
+                )
             }
         }
     }
@@ -98,17 +149,17 @@ private fun PerfilConvidado(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun AvatarIniciais(nome: String) {
+private fun AvatarIniciais(nome: String, tamanho: Dp = 72.dp) {
     val inicial = nome.trim().firstOrNull()?.uppercase() ?: "?"
     Box(
         modifier = Modifier
-            .size(72.dp)
+            .size(tamanho)
             .background(MaterialTheme.colorScheme.primary, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = inicial,
-            style = MaterialTheme.typography.headlineSmall,
+            style = if (tamanho >= 56.dp) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onPrimary,
             fontWeight = FontWeight.Bold
         )
@@ -128,10 +179,7 @@ private fun PerfilAutenticado(
     var menuPosicaoAberto by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AvatarIniciais(nome = uiState.nome)
