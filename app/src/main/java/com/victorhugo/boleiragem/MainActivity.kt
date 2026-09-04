@@ -26,6 +26,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +50,7 @@ import com.victorhugo.boleiragem.navigation.BoleiragemBottomNavigationBar
 import com.victorhugo.boleiragem.navigation.NavDestinations
 import com.victorhugo.boleiragem.ui.screens.cadastro.CadastroJogadoresScreen
 import com.victorhugo.boleiragem.ui.screens.cadastro.DetalheJogadorScreen
+import com.victorhugo.boleiragem.ui.screens.infogrupo.InfoGrupoScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoPontuacaoScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoTimesScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.GerenciadorPerfisScreen
@@ -237,7 +239,7 @@ fun MainScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
-        pageCount = { 5 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas
+        pageCount = { 6 } // Início, Jogadores, Regras, Sorteio, Jogo, Estatísticas
     )
 
     // Fase 2: enquanto este grupo está aberto, mantém a sincronização com o Firestore ativa
@@ -246,6 +248,9 @@ fun MainScreen(
     LaunchedEffect(grupoId) {
         grupoSyncViewModel.sincronizarGrupo(grupoId)
     }
+    // Membro comum (não Dono/Responsável) vê as mesmas telas, com os controles de edição
+    // desabilitados — grupo nunca compartilhado é sempre editável (default true no ViewModel).
+    val podeEditar by grupoSyncViewModel.podeEditar.collectAsState()
 
     LaunchedEffect(pagerState.currentPage) {
         selectedTabIndex = pagerState.currentPage
@@ -316,25 +321,30 @@ fun MainScreen(
                     .padding(innerPadding) // Aplicar innerPadding aqui
             ) { page ->
                 when (page) {
-                    0 -> CadastroJogadoresScreen(
+                    0 -> InfoGrupoScreen(grupoId = grupoId)
+                    1 -> CadastroJogadoresScreen(
                         grupoId = grupoId,
+                        podeEditar = podeEditar,
                         onNavigateToDetalheJogador = { jogadorId ->
                             isSecondaryScreen = true
                             secondaryScreenContent = {
                                 DetalheJogadorScreen(
                                     jogadorId = jogadorId,
+                                    podeEditar = podeEditar,
                                     onBackClick = { isSecondaryScreen = false }
                                 )
                             }
                         }
                     )
-                    1 -> ConfiguracaoTimesScreen(
+                    2 -> ConfiguracaoTimesScreen(
                         grupoId = grupoId,
+                        podeEditar = podeEditar,
                         onNavigateToConfiguracaoPontuacao = {
                             isSecondaryScreen = true
                             secondaryScreenContent = {
                                 ConfiguracaoPontuacaoScreen(
                                     grupoId = grupoId,
+                                    podeEditar = podeEditar,
                                     onBackClick = { isSecondaryScreen = false }
                                 )
                             }
@@ -344,22 +354,24 @@ fun MainScreen(
                             secondaryScreenContent = {
                                 GerenciadorPerfisScreen(
                                     grupoId = grupoId,
+                                    podeEditar = podeEditar,
                                     onNavigateBack = { isSecondaryScreen = false }
                                 )
                             }
                         }
                     )
-                    2 -> SorteioTimesScreen(
+                    3 -> SorteioTimesScreen(
                         grupoId = grupoId,
+                        podeEditar = podeEditar,
                         onSorteioRealizado = {
-                            scope.launch { pagerState.animateScrollToPage(3) }
+                            scope.launch { pagerState.animateScrollToPage(4) }
                         },
                         onNavigateToHistorico = {
-                            scope.launch { pagerState.animateScrollToPage(4) }
+                            scope.launch { pagerState.animateScrollToPage(5) }
                         }
                     )
-                    3 -> TimesAtuaisScreen(grupoId = grupoId)
-                    4 -> HistoricoScreen(grupoId = grupoId)
+                    4 -> TimesAtuaisScreen(grupoId = grupoId, podeEditar = podeEditar)
+                    5 -> HistoricoScreen(grupoId = grupoId, podeEditar = podeEditar)
                 }
             }
         }

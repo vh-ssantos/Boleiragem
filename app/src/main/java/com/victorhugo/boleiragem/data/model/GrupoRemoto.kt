@@ -33,6 +33,12 @@ data class GrupoRemoto(
     val membrosIds: List<String> = emptyList(),
     val codigoConvite: String = "",
     val permiteConviteDeMembros: Boolean = false,
+    // Recorrência (nomes de TipoRecorrencia/DiaSemana como String — evita acoplar este documento
+    // aos enums do Room). Usado pra dar a quem entra por código o mesmo "faltam N dias pra pelada"
+    // que o dono vê localmente (ver InfoGrupoScreen).
+    val tipoRecorrencia: String = "ESPORADICA",
+    val diaSemana: String? = null,
+    val diasSemana: List<String> = emptyList(),
     @ServerTimestamp
     val criadoEm: Date? = null
 ) {

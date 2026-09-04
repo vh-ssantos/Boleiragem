@@ -55,6 +55,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun ConfiguracaoTimesScreen(
     viewModel: ConfiguracaoTimesViewModel = hiltViewModel(),
     grupoId: Long = -1L, // Adicionando parâmetro grupoId
+    podeEditar: Boolean = true,
     onNavigateToConfiguracaoPontuacao: () -> Unit = {},
     onNavigateToGerenciadorPerfis: () -> Unit = {}
 ) {
@@ -158,7 +159,7 @@ fun ConfiguracaoTimesScreen(
             title = { Text("Configuração de Times") },
             actions = {
                 // Ícone de engrenagem movido para o topo da tela
-                IconButton(onClick = { viewModel.navegarParaGerenciadorPerfis() }) {
+                IconButton(onClick = { viewModel.navegarParaGerenciadorPerfis() }, enabled = podeEditar) {
                     Icon(
                         imageVector = Icons.Default.Settings,
                         contentDescription = "Gerenciar Perfis de Configuração",
@@ -288,6 +289,7 @@ fun ConfiguracaoTimesScreen(
                                 onValueChange = { viewModel.jogadoresPorTime = it.toInt() },
                                 valueRange = 3f..11f,
                                 steps = 7,
+                                enabled = podeEditar,
                                 modifier = Modifier.fillMaxWidth()
                             )
 
@@ -305,6 +307,7 @@ fun ConfiguracaoTimesScreen(
                                 onValueChange = { viewModel.quantidadeTimes = it.toInt() },
                                 valueRange = 2f..6f,
                                 steps = 3,
+                                enabled = podeEditar,
                                 modifier = Modifier.fillMaxWidth()
                             )
 
@@ -396,6 +399,7 @@ fun ConfiguracaoTimesScreen(
                             nomeConfiguracao = viewModel.nomeConfiguracao
                             viewModel.iniciarSalvamentoConfiguracao()
                         },
+                        enabled = podeEditar,
                         modifier = Modifier
                             .weight(1f)
                             .height(com.victorhugo.boleiragem.ui.common.Dimensions.standardButtonHeight)
@@ -415,6 +419,7 @@ fun ConfiguracaoTimesScreen(
                         onClick = {
                             viewModel.salvarConfiguracoes()
                         },
+                        enabled = podeEditar,
                         modifier = Modifier
                             .weight(1f)
                             .height(com.victorhugo.boleiragem.ui.common.Dimensions.standardButtonHeight)

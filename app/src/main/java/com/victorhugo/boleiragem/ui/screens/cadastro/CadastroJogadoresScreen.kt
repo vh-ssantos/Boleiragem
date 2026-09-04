@@ -63,6 +63,7 @@ import com.victorhugo.boleiragem.data.model.PosicaoJogador
 fun CadastroJogadoresScreen(
 viewModel: CadastroJogadoresViewModel = hiltViewModel(),
 grupoId: Long, // Adicionado este parâmetro
+podeEditar: Boolean = true,
 onNavigateToDetalheJogador: (Long) -> Unit
 ) {
     // Defina o grupoId no ViewModel
@@ -149,19 +150,22 @@ onNavigateToDetalheJogador: (Long) -> Unit
                         JogadorItem(
                             jogador = jogador,
                             onEditClick = { onNavigateToDetalheJogador(jogador.id) },
-                            onDeleteClick = { viewModel.deletarJogador(jogador) }
+                            onDeleteClick = { viewModel.deletarJogador(jogador) },
+                            podeEditar = podeEditar
                         )
                     }
                 }
             }
 
-            // Botão flutuante no canto inferior da tela, mas dentro da Box
+            // Botão flutuante no canto inferior da tela, mas dentro da Box. Desabilitado (não
+            // escondido) pra quem não é Dono/Responsável — ExtendedFloatingActionButton não tem
+            // parâmetro `enabled`, então o corte é feito no próprio onClick + cores esmaecidas.
             ExtendedFloatingActionButton(
-                onClick = { showAddJogadorDialog = true },
+                onClick = { if (podeEditar) showAddJogadorDialog = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = "Adicionar") },
                 text = { Text("Adicionar Jogador") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = if (podeEditar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (podeEditar) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 16.dp)
@@ -204,7 +208,8 @@ onNavigateToDetalheJogador: (Long) -> Unit
 fun JogadorItem(
     jogador: Jogador,
     onEditClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    podeEditar: Boolean = true
 ) {
     Card(
         modifier = Modifier
@@ -245,19 +250,19 @@ fun JogadorItem(
                     }
                 }
 
-                IconButton(onClick = onEditClick) {
+                IconButton(onClick = onEditClick, enabled = podeEditar) {
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Editar",
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = if (podeEditar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                IconButton(onClick = onDeleteClick) {
+                IconButton(onClick = onDeleteClick, enabled = podeEditar) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Excluir",
-                        tint = MaterialTheme.colorScheme.error
+                        tint = if (podeEditar) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

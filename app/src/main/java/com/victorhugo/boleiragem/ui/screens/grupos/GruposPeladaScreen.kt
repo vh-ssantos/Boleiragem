@@ -104,7 +104,7 @@ fun GruposPeladaScreen(
     val podeRealizarSorteioRapido by viewModel.podeRealizarSorteioRapido.collectAsState()
 
     // Grupos compartilhados (Firestore)
-    val gruposComoConvidado by viewModel.gruposComoConvidado.collectAsState()
+    val papeisGrupos by viewModel.papeisGrupos.collectAsState()
     val mostrarDialogoEntrarComCodigo by viewModel.mostrarDialogoEntrarComCodigo.collectAsState()
     val erroEntrarComCodigo by viewModel.erroEntrarComCodigo.collectAsState()
     val carregandoEntrarComCodigo by viewModel.carregandoEntrarComCodigo.collectAsState()
@@ -231,14 +231,6 @@ fun GruposPeladaScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-            if (gruposComoConvidado.isNotEmpty()) {
-                SecaoGruposConvidado(
-                    grupos = gruposComoConvidado,
-                    papelDe = { viewModel.papelNoGrupo(it) },
-                    perfisMembros = perfisMembros,
-                    onSairClick = { viewModel.sairDeGrupoCompartilhado(it) }
-                )
-            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -278,27 +270,33 @@ fun GruposPeladaScreen(
                     when (tipoVisualizacao) {
                         TipoVisualizacao.LISTA -> ListaVisualizacao(
                             grupos = grupos,
+                            papeisGrupos = papeisGrupos,
                             onGrupoClick = navegarParaDetalheGrupo,
                             onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
                             onExcluirClick = { viewModel.excluirGrupo(it) },
                             onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
-                            onConvidarClick = { viewModel.abrirConvite(it) }
+                            onConvidarClick = { viewModel.abrirConvite(it) },
+                            onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } }
                         )
                         TipoVisualizacao.CARDS -> CardsVisualizacao(
                             grupos = grupos,
+                            papeisGrupos = papeisGrupos,
                             onGrupoClick = navegarParaDetalheGrupo,
                             onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
                             onExcluirClick = { viewModel.excluirGrupo(it) },
                             onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
-                            onConvidarClick = { viewModel.abrirConvite(it) }
+                            onConvidarClick = { viewModel.abrirConvite(it) },
+                            onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } }
                         )
                         TipoVisualizacao.MINIMALISTA -> MinimalistaVisualizacao(
                             grupos = grupos,
+                            papeisGrupos = papeisGrupos,
                             onGrupoClick = navegarParaDetalheGrupo,
                             onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
                             onExcluirClick = { viewModel.excluirGrupo(it) },
                             onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
-                            onConvidarClick = { viewModel.abrirConvite(it) }
+                            onConvidarClick = { viewModel.abrirConvite(it) },
+                            onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } }
                         )
                     }
                 }
@@ -452,68 +450,6 @@ fun GruposPeladaScreen(
     }
 }
 
-@Composable
-fun SecaoGruposConvidado(
-    grupos: List<GrupoRemoto>,
-    papelDe: (GrupoRemoto) -> PapelGrupo,
-    perfisMembros: Map<String, UsuarioPerfil>,
-    onSairClick: (GrupoRemoto) -> Unit
-) {
-    Column(modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)) {
-        Text(
-            "Grupos que você participa",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            grupos.forEach { grupo ->
-                var showMenu by remember(grupo.id) { mutableStateOf(false) }
-                val papel = papelDe(grupo)
-                Card(
-                    modifier = Modifier.width(200.dp).clickable { showMenu = true },
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(grupo.nome, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "De: ${perfisMembros[grupo.donoId]?.nome ?: grupo.donoNome}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        AssistChip(
-                            onClick = {},
-                            label = { Text(if (papel == PapelGrupo.EDITOR) "Editor" else "Membro") },
-                            modifier = Modifier.height(24.dp)
-                        )
-                        Text(
-                            "Sincronização completa chega em breve — por enquanto só o convite",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                }
-                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(text = { Text("Sair do grupo") }, onClick = {
-                        onSairClick(grupo)
-                        showMenu = false
-                    })
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun DialogoEntrarComCodigo(
@@ -678,12 +614,12 @@ fun DialogoGerenciarMembros(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(nome, style = MaterialTheme.typography.bodyMedium)
-                                Text(if (ehEditor) "Editor" else "Membro", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                Text(if (ehEditor) "Responsável" else "Membro", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                             }
                             if (ehEditor) {
                                 TextButton(onClick = { onRemoverEditor(uid) }) { Text("Rebaixar") }
                             } else {
-                                TextButton(onClick = { onPromoverEditor(uid) }) { Text("Tornar editor") }
+                                TextButton(onClick = { onPromoverEditor(uid) }) { Text("Tornar responsável") }
                             }
                             IconButton(onClick = { onRemoverMembro(uid) }) {
                                 Icon(Icons.Default.PersonRemove, contentDescription = "Remover do grupo")
@@ -779,11 +715,13 @@ fun SelecionarGrupoParaSorteioRapidoDialog(
 @Composable
 fun ListaVisualizacao(
     grupos: List<GrupoPelada>,
+    papeisGrupos: Map<String, PapelGrupo> = emptyMap(),
     onGrupoClick: (GrupoPelada) -> Unit,
     onEditarClick: (GrupoPelada) -> Unit,
     onExcluirClick: (GrupoPelada) -> Unit,
     onSorteioRapidoClick: (GrupoPelada) -> Unit,
-    onConvidarClick: (GrupoPelada) -> Unit = {}
+    onConvidarClick: (GrupoPelada) -> Unit = {},
+    onSairDoGrupoClick: (GrupoPelada) -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -793,11 +731,13 @@ fun ListaVisualizacao(
         items(grupos) { grupo ->
             GrupoItemLista(
                 grupo = grupo,
+                papel = grupo.firestoreId?.let { papeisGrupos[it] } ?: PapelGrupo.DONO,
                 onClick = { onGrupoClick(grupo) },
                 onEditarClick = { onEditarClick(grupo) },
                 onExcluirClick = { onExcluirClick(grupo) },
                 onSorteioRapidoClick = { onSorteioRapidoClick(grupo) }, // Este click pode ser removido dos itens individuais se o FAB for a única entrada
-                onConvidarClick = { onConvidarClick(grupo) }
+                onConvidarClick = { onConvidarClick(grupo) },
+                onSairDoGrupoClick = { onSairDoGrupoClick(grupo) }
             )
         }
     }
@@ -806,11 +746,13 @@ fun ListaVisualizacao(
 @Composable
 fun CardsVisualizacao(
     grupos: List<GrupoPelada>,
+    papeisGrupos: Map<String, PapelGrupo> = emptyMap(),
     onGrupoClick: (GrupoPelada) -> Unit,
     onEditarClick: (GrupoPelada) -> Unit,
     onExcluirClick: (GrupoPelada) -> Unit,
     onSorteioRapidoClick: (GrupoPelada) -> Unit,
-    onConvidarClick: (GrupoPelada) -> Unit = {}
+    onConvidarClick: (GrupoPelada) -> Unit = {},
+    onSairDoGrupoClick: (GrupoPelada) -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
@@ -821,11 +763,13 @@ fun CardsVisualizacao(
         items(grupos) { grupo ->
             GrupoItemCard(
                 grupo = grupo,
+                papel = grupo.firestoreId?.let { papeisGrupos[it] } ?: PapelGrupo.DONO,
                 onClick = { onGrupoClick(grupo) },
                 onEditarClick = { onEditarClick(grupo) },
                 onExcluirClick = { onExcluirClick(grupo) },
                 onSorteioRapidoClick = { onSorteioRapidoClick(grupo) }, // Idem
-                onConvidarClick = { onConvidarClick(grupo) }
+                onConvidarClick = { onConvidarClick(grupo) },
+                onSairDoGrupoClick = { onSairDoGrupoClick(grupo) }
             )
         }
     }
@@ -834,11 +778,13 @@ fun CardsVisualizacao(
 @Composable
 fun MinimalistaVisualizacao(
     grupos: List<GrupoPelada>,
+    papeisGrupos: Map<String, PapelGrupo> = emptyMap(),
     onGrupoClick: (GrupoPelada) -> Unit,
     onEditarClick: (GrupoPelada) -> Unit,
     onExcluirClick: (GrupoPelada) -> Unit,
     onSorteioRapidoClick: (GrupoPelada) -> Unit,
-    onConvidarClick: (GrupoPelada) -> Unit = {}
+    onConvidarClick: (GrupoPelada) -> Unit = {},
+    onSairDoGrupoClick: (GrupoPelada) -> Unit = {}
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
@@ -849,11 +795,13 @@ fun MinimalistaVisualizacao(
         items(grupos) { grupo ->
             GrupoItemMinimalista(
                 grupo = grupo,
+                papel = grupo.firestoreId?.let { papeisGrupos[it] } ?: PapelGrupo.DONO,
                 onClick = { onGrupoClick(grupo) },
                 onEditarClick = { onEditarClick(grupo) },
                 onExcluirClick = { onExcluirClick(grupo) },
                 onSorteioRapidoClick = { onSorteioRapidoClick(grupo) }, // Idem
-                onConvidarClick = { onConvidarClick(grupo) }
+                onConvidarClick = { onConvidarClick(grupo) },
+                onSairDoGrupoClick = { onSairDoGrupoClick(grupo) }
             )
         }
     }
@@ -866,7 +814,9 @@ fun GrupoItemLista(
     onEditarClick: () -> Unit,
     onExcluirClick: () -> Unit,
     onSorteioRapidoClick: () -> Unit, // Considerar remover se o FAB é a única entrada para sorteio
-    onConvidarClick: () -> Unit = {}
+    onConvidarClick: () -> Unit = {},
+    papel: PapelGrupo = PapelGrupo.DONO,
+    onSairDoGrupoClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -891,7 +841,13 @@ fun GrupoItemLista(
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(grupo.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(grupo.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (grupo.firestoreId != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        ChipPapel(papel)
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, "Local", Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
@@ -914,27 +870,39 @@ fun GrupoItemLista(
                     Icon(Icons.Default.MoreVert, "Mais opções")
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    // A opção "Sorteio Rápido" no menu do item pode ser removida se o FAB for a única entrada
-                    // DropdownMenuItem(text = { Text("Sorteio Rápido") }, onClick = {
-                    //     onSorteioRapidoClick()
-                    //     showMenu = false
-                    // })
-                    DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
-                        onConvidarClick()
-                        showMenu = false
-                    })
-                    DropdownMenuItem(text = { Text("Editar") }, onClick = {
-                        onEditarClick()
-                        showMenu = false
-                    })
-                    DropdownMenuItem(text = { Text("Excluir") }, onClick = {
-                        onExcluirClick()
-                        showMenu = false
-                    })
+                    if (papel == PapelGrupo.DONO) {
+                        DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
+                            onConvidarClick()
+                            showMenu = false
+                        })
+                        DropdownMenuItem(text = { Text("Editar") }, onClick = {
+                            onEditarClick()
+                            showMenu = false
+                        })
+                        DropdownMenuItem(text = { Text("Excluir") }, onClick = {
+                            onExcluirClick()
+                            showMenu = false
+                        })
+                    } else {
+                        DropdownMenuItem(text = { Text("Sair do grupo") }, onClick = {
+                            onSairDoGrupoClick()
+                            showMenu = false
+                        })
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+fun ChipPapel(papel: PapelGrupo) {
+    val texto = when (papel) {
+        PapelGrupo.DONO -> "Dono"
+        PapelGrupo.EDITOR -> "Responsável"
+        PapelGrupo.MEMBRO -> "Membro"
+    }
+    AssistChip(onClick = {}, label = { Text(texto, style = MaterialTheme.typography.labelSmall) }, modifier = Modifier.height(24.dp))
 }
 
 @Composable
@@ -944,7 +912,9 @@ fun GrupoItemCard(
     onEditarClick: () -> Unit,
     onExcluirClick: () -> Unit,
     onSorteioRapidoClick: () -> Unit, // Considerar remover
-    onConvidarClick: () -> Unit = {}
+    onConvidarClick: () -> Unit = {},
+    papel: PapelGrupo = PapelGrupo.DONO,
+    onSairDoGrupoClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -969,27 +939,36 @@ fun GrupoItemCard(
                         Icon(Icons.Default.MoreVert, "Mais opções", Modifier.size(16.dp))
                     }
                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                        // DropdownMenuItem(text = { Text("Sorteio Rápido") }, onClick = {
-                        //     onSorteioRapidoClick()
-                        //     showMenu = false
-                        // })
-                        DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
-                            onConvidarClick()
-                            showMenu = false
-                        })
-                        DropdownMenuItem(text = { Text("Editar") }, onClick = {
-                            onEditarClick()
-                            showMenu = false
-                        })
-                        DropdownMenuItem(text = { Text("Excluir") }, onClick = {
-                            onExcluirClick()
-                            showMenu = false
-                        })
+                        if (papel == PapelGrupo.DONO) {
+                            DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
+                                onConvidarClick()
+                                showMenu = false
+                            })
+                            DropdownMenuItem(text = { Text("Editar") }, onClick = {
+                                onEditarClick()
+                                showMenu = false
+                            })
+                            DropdownMenuItem(text = { Text("Excluir") }, onClick = {
+                                onExcluirClick()
+                                showMenu = false
+                            })
+                        } else {
+                            DropdownMenuItem(text = { Text("Sair do grupo") }, onClick = {
+                                onSairDoGrupoClick()
+                                showMenu = false
+                            })
+                        }
                     }
                 }
             }
             Column(modifier = Modifier.padding(12.dp)) {
-                Text(grupo.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(grupo.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (grupo.firestoreId != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        ChipPapel(papel)
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.LocationOn, "Local", Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
@@ -1020,7 +999,9 @@ fun GrupoItemMinimalista(
     onEditarClick: () -> Unit,
     onExcluirClick: () -> Unit,
     onSorteioRapidoClick: () -> Unit, // Considerar remover
-    onConvidarClick: () -> Unit = {}
+    onConvidarClick: () -> Unit = {},
+    papel: PapelGrupo = PapelGrupo.DONO,
+    onSairDoGrupoClick: () -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -1047,27 +1028,33 @@ fun GrupoItemMinimalista(
                     Icon(Icons.Default.Menu, "Opções", Modifier.align(Alignment.Center).size(16.dp), tint = MaterialTheme.colorScheme.onPrimary)
                 }
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    // DropdownMenuItem(text = { Text("Sorteio Rápido") }, onClick = {
-                    //     onSorteioRapidoClick()
-                    //     showMenu = false
-                    // })
-                    DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
-                        onConvidarClick()
-                        showMenu = false
-                    })
-                    DropdownMenuItem(text = { Text("Editar") }, onClick = {
-                        onEditarClick()
-                        showMenu = false
-                    })
-                    DropdownMenuItem(text = { Text("Excluir") }, onClick = {
-                        onExcluirClick()
-                        showMenu = false
-                    })
+                    if (papel == PapelGrupo.DONO) {
+                        DropdownMenuItem(text = { Text(if (grupo.firestoreId != null) "Convidar / código" else "Convidar") }, onClick = {
+                            onConvidarClick()
+                            showMenu = false
+                        })
+                        DropdownMenuItem(text = { Text("Editar") }, onClick = {
+                            onEditarClick()
+                            showMenu = false
+                        })
+                        DropdownMenuItem(text = { Text("Excluir") }, onClick = {
+                            onExcluirClick()
+                            showMenu = false
+                        })
+                    } else {
+                        DropdownMenuItem(text = { Text("Sair do grupo") }, onClick = {
+                            onSairDoGrupoClick()
+                            showMenu = false
+                        })
+                    }
                 }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(grupo.nome, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(100.dp))
+        if (grupo.firestoreId != null) {
+            ChipPapel(papel)
+        }
         Text(
             text = formatarHorarioGrupo(grupo),
             style = MaterialTheme.typography.bodySmall,

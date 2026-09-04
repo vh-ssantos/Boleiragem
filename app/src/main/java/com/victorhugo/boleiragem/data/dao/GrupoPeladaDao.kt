@@ -23,6 +23,9 @@ interface GrupoPeladaDao {
     @Query("SELECT * FROM grupo_pelada WHERE id = :id")
     suspend fun getGrupoPeladaPorId(id: Long): GrupoPelada?
 
+    @Query("SELECT * FROM grupo_pelada WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getGrupoPeladaPorFirestoreId(firestoreId: String): GrupoPelada?
+
     @Query("SELECT * FROM grupo_pelada WHERE ativo = 1 ORDER BY ultimaModificacao DESC")
     fun getGruposPeladaAtivos(): Flow<List<GrupoPelada>>
 

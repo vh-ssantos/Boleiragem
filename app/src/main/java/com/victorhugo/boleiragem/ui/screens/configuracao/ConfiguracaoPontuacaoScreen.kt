@@ -45,6 +45,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun ConfiguracaoPontuacaoScreen(
     viewModel: ConfiguracaoPontuacaoViewModel = hiltViewModel(),
     grupoId: Long = -1L,
+    podeEditar: Boolean = true,
     onBackClick: () -> Unit
 ) {
     LaunchedEffect(grupoId) {
@@ -111,6 +112,7 @@ fun ConfiguracaoPontuacaoScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
+                    if (!podeEditar) return@FloatingActionButton
                     // Converte os valores de texto para números e atualiza o ViewModel
                     viewModel.atualizarPontosPorVitoria(pontosPorVitoria.toIntOrNull() ?: 10)
                     viewModel.atualizarPontosPorDerrota(pontosPorDerrota.toIntOrNull() ?: -10)
@@ -119,8 +121,8 @@ fun ConfiguracaoPontuacaoScreen(
                     // Salva a configuração
                     viewModel.salvarConfiguracao()
                 },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = if (podeEditar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (podeEditar) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Icon(Icons.Default.Check, contentDescription = "Salvar")
             }

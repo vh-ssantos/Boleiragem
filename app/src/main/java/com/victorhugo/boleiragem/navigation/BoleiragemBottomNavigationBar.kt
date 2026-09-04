@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -34,6 +35,11 @@ fun BoleiragemBottomNavigationBar(
     modifier: Modifier = Modifier
 ) {
     val items = listOf(
+        BottomNavItem(
+            route = NavDestinations.Info.route,
+            title = "Início",
+            icon = Icons.Default.Groups
+        ),
         BottomNavItem(
             route = NavDestinations.CadastroJogadores.route,
             title = "Jogadores",

@@ -29,7 +29,8 @@ import java.util.*
 fun HistoricoScreen(
     historicoViewModel: HistoricoViewModel = hiltViewModel(),
     estatisticasViewModel: EstatisticasViewModel = hiltViewModel(),
-    grupoId: Long = -1L // Adicionando parâmetro grupoId
+    grupoId: Long = -1L, // Adicionando parâmetro grupoId
+    podeEditar: Boolean = true
 ) {
     // Efeito para definir o ID do grupo quando a tela é carregada
     LaunchedEffect(grupoId) {
@@ -147,7 +148,8 @@ fun HistoricoScreen(
                     }
 
                     IconButton(
-                        onClick = { showConfirmacaoExclusao = true }
+                        onClick = { showConfirmacaoExclusao = true },
+                        enabled = podeEditar
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,

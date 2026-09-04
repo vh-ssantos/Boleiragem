@@ -43,6 +43,15 @@ class GrupoPeladaRepository @Inject constructor(
     }
 
     /**
+     * Espelho local de um grupo compartilhado (identificado pelo doc do Firestore). Usado tanto
+     * pra checar idempotência ao entrar num grupo por código (Fase 3/comunidade) quanto por quem
+     * já é dono e teve o grupo sincronizado.
+     */
+    suspend fun getGrupoPorFirestoreId(firestoreId: String): GrupoPelada? {
+        return grupoPeladaDao.getGrupoPeladaPorFirestoreId(firestoreId)
+    }
+
+    /**
      * Insere um novo grupo de pelada no banco de dados
      * @return ID do grupo inserido
      */

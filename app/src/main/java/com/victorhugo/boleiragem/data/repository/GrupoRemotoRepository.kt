@@ -43,7 +43,10 @@ class GrupoRemotoRepository @Inject constructor(
         local: String,
         horario: String,
         descricao: String?,
-        imagemUrl: String?
+        imagemUrl: String?,
+        tipoRecorrencia: String = "ESPORADICA",
+        diaSemana: String? = null,
+        diasSemana: List<String> = emptyList()
     ): GrupoRemoto {
         val codigo = gerarCodigoConvite()
         val grupo = GrupoRemoto(
@@ -57,7 +60,10 @@ class GrupoRemotoRepository @Inject constructor(
             editoresIds = emptyList(),
             membrosIds = listOf(donoId),
             codigoConvite = codigo,
-            permiteConviteDeMembros = false
+            permiteConviteDeMembros = false,
+            tipoRecorrencia = tipoRecorrencia,
+            diaSemana = diaSemana,
+            diasSemana = diasSemana
         )
         val referencia = grupos.add(grupo).await()
         return grupo.copy(id = referencia.id)

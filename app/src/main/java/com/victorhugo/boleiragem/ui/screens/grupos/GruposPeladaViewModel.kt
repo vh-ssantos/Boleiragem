@@ -122,10 +122,12 @@ class GruposPeladaViewModel @Inject constructor(
 
     // --- Grupos compartilhados (Firestore) ---
 
-    // Grupos onde o usuário logado é membro/editor mas NÃO é o dono (ou seja, não existem localmente
-    // no Room deste dispositivo — foram criados por outra pessoa e entramos via código de convite).
-    private val _gruposComoConvidado = MutableStateFlow<List<GrupoRemoto>>(emptyList())
-    val gruposComoConvidado: StateFlow<List<GrupoRemoto>> = _gruposComoConvidado.asStateFlow()
+    // Papel do usuário logado (Dono/Responsável/Membro) em cada grupo compartilhado que participa,
+    // por firestoreId — inclui os que ele mesmo criou. Grupos nunca compartilhados (firestoreId
+    // nulo) não entram aqui; a UI trata a ausência de entrada como "Dono" (comportamento local de
+    // sempre, sem restrição).
+    private val _papeisGrupos = MutableStateFlow<Map<String, PapelGrupo>>(emptyMap())
+    val papeisGrupos: StateFlow<Map<String, PapelGrupo>> = _papeisGrupos.asStateFlow()
 
     private val _mostrarDialogoEntrarComCodigo = MutableStateFlow(false)
     val mostrarDialogoEntrarComCodigo: StateFlow<Boolean> = _mostrarDialogoEntrarComCodigo.asStateFlow()
@@ -173,11 +175,8 @@ class GruposPeladaViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 grupoRemotoRepository.observarMeusGrupos(uid).collect { todos ->
-                    // Só entram aqui os grupos onde o usuário NÃO é dono - os que ele criou já aparecem
-                    // via Room em `grupos` (fonte local, sempre disponível offline).
-                    val comoConvidado = todos.filter { it.donoId != uid }
-                    _gruposComoConvidado.value = comoConvidado
-                    val todosUids = comoConvidado.flatMap { listOf(it.donoId) + it.editoresIds + it.membrosIds }.distinct()
+                    _papeisGrupos.value = todos.associate { it.id to it.papelDe(uid) }
+                    val todosUids = todos.flatMap { listOf(it.donoId) + it.editoresIds + it.membrosIds }.distinct()
                     if (todosUids.isNotEmpty()) {
                         _perfisMembros.value = usuarioRepository.buscarPerfis(todosUids)
                     }
@@ -187,8 +186,6 @@ class GruposPeladaViewModel @Inject constructor(
             }
         }
     }
-
-    fun papelNoGrupo(grupo: GrupoRemoto): PapelGrupo = uidAtual?.let { grupo.papelDe(it) } ?: PapelGrupo.MEMBRO
 
     fun abrirDialogoEntrarComCodigo() {
         _erroEntrarComCodigo.value = null
@@ -240,6 +237,7 @@ class GruposPeladaViewModel @Inject constructor(
             _carregandoEntrarComCodigo.value = true
             try {
                 grupoRemotoRepository.entrarNoGrupo(grupo.id, uid)
+                criarEspelhoLocalSeNecessario(grupo, uid)
                 fecharDialogoEntrarComCodigo()
             } catch (e: Exception) {
                 Log.e("GruposVM", "Erro ao entrar no grupo", e)
@@ -250,11 +248,51 @@ class GruposPeladaViewModel @Inject constructor(
         }
     }
 
+    // Dá a quem entrou por código um grupoId local de verdade, senão a pessoa nunca consegue abrir
+    // a tela do grupo (era exatamente o gap: entrar só registrava o membro no Firestore, sem jeito
+    // de ver o grupo por dentro). Idempotente: não duplica se a pessoa sair e entrar de novo.
+    private suspend fun criarEspelhoLocalSeNecessario(grupoRemoto: GrupoRemoto, uid: String) {
+        if (grupoPeladaRepository.getGrupoPorFirestoreId(grupoRemoto.id) != null) return
+        grupoPeladaRepository.inserirGrupo(
+            GrupoPelada(
+                nome = grupoRemoto.nome,
+                local = grupoRemoto.local,
+                horario = grupoRemoto.horario,
+                descricao = grupoRemoto.descricao,
+                usuarioId = uid,
+                compartilhado = true,
+                firestoreId = grupoRemoto.id,
+                tipoRecorrencia = runCatching { TipoRecorrencia.valueOf(grupoRemoto.tipoRecorrencia) }
+                    .getOrDefault(TipoRecorrencia.ESPORADICA),
+                diaSemana = grupoRemoto.diaSemana?.let { runCatching { DiaSemana.valueOf(it) }.getOrNull() },
+                diasSemana = grupoRemoto.diasSemana.mapNotNull { runCatching { DiaSemana.valueOf(it) }.getOrNull() }
+            )
+        )
+    }
+
     fun sairDeGrupoCompartilhado(grupo: GrupoRemoto) {
         val uid = uidAtual ?: return
         viewModelScope.launch {
             try { grupoRemotoRepository.sairDoGrupo(grupo.id, uid) }
             catch (e: Exception) { Log.e("GruposVM", "Erro ao sair do grupo", e) }
+        }
+    }
+
+    // Usado a partir do card de um grupo já espelhado localmente (comunidade) — sai do grupo no
+    // Firestore e remove o espelho local (se a pessoa entrar de novo depois,
+    // criarEspelhoLocalSeNecessario cria uma linha nova, sem duplicar nada agora).
+    fun sairDeGrupoCompartilhadoPorId(firestoreId: String) {
+        val uid = uidAtual ?: return
+        viewModelScope.launch {
+            try {
+                grupoRemotoRepository.sairDoGrupo(firestoreId, uid)
+                grupoPeladaRepository.getGrupoPorFirestoreId(firestoreId)?.let {
+                    grupoPeladaRepository.deletarGrupo(it)
+                }
+                carregarGrupos()
+            } catch (e: Exception) {
+                Log.e("GruposVM", "Erro ao sair do grupo", e)
+            }
         }
     }
 
@@ -283,7 +321,10 @@ class GruposPeladaViewModel @Inject constructor(
                         local = grupoLocal.local,
                         horario = grupoLocal.horario,
                         descricao = grupoLocal.descricao,
-                        imagemUrl = grupoLocal.imagemUrl
+                        imagemUrl = grupoLocal.imagemUrl,
+                        tipoRecorrencia = grupoLocal.tipoRecorrencia.name,
+                        diaSemana = grupoLocal.diaSemana?.name,
+                        diasSemana = grupoLocal.diasSemana.map { it.name }
                     )
                     grupoPeladaRepository.atualizarGrupo(grupoLocal.copy(firestoreId = criado.id, usuarioId = uid, compartilhado = true))
                     carregarGrupos()

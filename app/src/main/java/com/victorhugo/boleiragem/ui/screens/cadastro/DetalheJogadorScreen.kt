@@ -18,6 +18,7 @@ import com.victorhugo.boleiragem.data.model.PosicaoJogador
 fun DetalheJogadorScreen(
     jogadorId: Long,
     onBackClick: () -> Unit,
+    podeEditar: Boolean = true,
     viewModel: DetalheJogadorViewModel = hiltViewModel()
 ) {
     val jogadorState = viewModel.jogador.collectAsState(null)
@@ -62,10 +63,10 @@ fun DetalheJogadorScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    viewModel.salvarJogador()
+                    if (podeEditar) viewModel.salvarJogador()
                 },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                containerColor = if (podeEditar) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (podeEditar) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
             ) {
                 Icon(Icons.Default.Check, contentDescription = "Salvar")
             }

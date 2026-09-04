@@ -59,6 +59,7 @@ import com.victorhugo.boleiragem.data.model.CriterioSorteio
 fun GerenciadorPerfisScreen(
     viewModel: GerenciadorPerfisViewModel = hiltViewModel(),
     grupoId: Long = 0L, // Adicionando o parâmetro grupoId com valor padrão
+    podeEditar: Boolean = true,
     onNavigateBack: () -> Unit
 ) {
     val perfis by viewModel.perfis.collectAsState()
@@ -85,7 +86,10 @@ fun GerenciadorPerfisScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { viewModel.criarNovoPerfil() }) {
+            FloatingActionButton(
+                onClick = { if (podeEditar) viewModel.criarNovoPerfil() },
+                containerColor = if (podeEditar) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            ) {
                 Icon(Icons.Default.Add, contentDescription = "Adicionar Perfil")
             }
         }
@@ -116,7 +120,8 @@ fun GerenciadorPerfisScreen(
                             onEdit = { viewModel.editarPerfil(perfil) },
                             onDelete = { viewModel.confirmarExclusao(perfil) },
                             onSetDefault = { viewModel.definirComoPadrao(perfil.id) },
-                            isUnicoPerfil = perfis.size <= 1 // Desabilita a exclusão quando há apenas um perfil
+                            isUnicoPerfil = perfis.size <= 1, // Desabilita a exclusão quando há apenas um perfil
+                            podeEditar = podeEditar
                         )
                     }
                 }
@@ -159,7 +164,8 @@ fun PerfilItem(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSetDefault: () -> Unit,
-    isUnicoPerfil: Boolean = false // Novo parâmetro para verificar se é o único perfil
+    isUnicoPerfil: Boolean = false, // Novo parâmetro para verificar se é o único perfil
+    podeEditar: Boolean = true
 ) {
     Card(
         modifier = Modifier
@@ -205,18 +211,18 @@ fun PerfilItem(
                 }
 
                 Row {
-                    IconButton(onClick = onEdit) {
+                    IconButton(onClick = onEdit, enabled = podeEditar) {
                         Icon(Icons.Default.Edit, contentDescription = "Editar")
                     }
-                    // Desativar o botão de exclusão se for o único perfil
+                    // Desativar o botão de exclusão se for o único perfil ou o usuário não puder editar
                     IconButton(
                         onClick = onDelete,
-                        enabled = !isUnicoPerfil
+                        enabled = !isUnicoPerfil && podeEditar
                     ) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "Excluir",
-                            tint = if (isUnicoPerfil) Color.Gray else MaterialTheme.colorScheme.error
+                            tint = if (isUnicoPerfil || !podeEditar) Color.Gray else MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -238,6 +244,7 @@ fun PerfilItem(
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = onSetDefault,
+                    enabled = podeEditar,
                     modifier = Modifier.align(Alignment.End)
                 ) {
                     Text("Definir como Padrão")

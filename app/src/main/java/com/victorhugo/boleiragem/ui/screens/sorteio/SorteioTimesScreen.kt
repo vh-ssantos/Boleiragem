@@ -25,6 +25,7 @@ import com.victorhugo.boleiragem.ui.common.Dimensions.standardButtonWidth
 fun SorteioTimesScreen(
     viewModel: SorteioTimesViewModel = hiltViewModel(),
     grupoId: Long = -1L, // Adicionando o parâmetro grupoId
+    podeEditar: Boolean = true,
     onSorteioRealizado: () -> Unit = {},
     onNavigateToHistorico: () -> Unit = {}
 ) {
@@ -316,7 +317,7 @@ fun SorteioTimesScreen(
             // Botão fixo na parte inferior com estilo melhorado
             Button(
                 onClick = { viewModel.verificarESortearTimes() },
-                enabled = viewModel.jogadoresSelecionados.isNotEmpty() && !loading && botaoSorteioHabilitado,
+                enabled = podeEditar && viewModel.jogadoresSelecionados.isNotEmpty() && !loading && botaoSorteioHabilitado,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(horizontal = 16.dp, vertical = 16.dp)

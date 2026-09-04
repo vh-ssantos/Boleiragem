@@ -37,7 +37,8 @@ import java.util.*
 @Composable
 fun TimesAtuaisScreen(
     viewModel: HistoricoTimesViewModel = hiltViewModel(),
-    grupoId: Long = -1L // Adicionando parâmetro grupoId
+    grupoId: Long = -1L, // Adicionando parâmetro grupoId
+    podeEditar: Boolean = true
 ) {
     // Efeito para definir o ID do grupo quando a tela é carregada
     LaunchedEffect(grupoId) {
@@ -159,7 +160,7 @@ fun TimesAtuaisScreen(
             actions = {
                 // Botão para exibir o seletor de confrontos
                 if (historicoTimes.size > 1) {
-                    IconButton(onClick = { viewModel.mostrarComponenteConfronto() }) {
+                    IconButton(onClick = { viewModel.mostrarComponenteConfronto() }, enabled = podeEditar) {
                         Icon(
                             imageVector = Icons.Default.Sports,
                             contentDescription = "Confronto entre Times",
@@ -168,7 +169,7 @@ fun TimesAtuaisScreen(
                     }
 
                     // Botão para transferir jogadores entre times
-                    IconButton(onClick = { viewModel.mostrarDialogoTransferencia() }) {
+                    IconButton(onClick = { viewModel.mostrarDialogoTransferencia() }, enabled = podeEditar) {
                         Icon(
                             imageVector = Icons.Default.SwapHoriz,
                             contentDescription = "Transferir Jogadores",
@@ -238,7 +239,8 @@ fun TimesAtuaisScreen(
                                 onDiminuirVitoriaClick = { viewModel.diminuirVitoria(time) },
                                 onDiminuirDerrotaClick = { viewModel.diminuirDerrota(time) },
                                 onDiminuirEmpateClick = { viewModel.diminuirEmpate(time) },
-                                onSubstituicaoClick = { viewModel.mostrarDialogoTransferencia() }
+                                onSubstituicaoClick = { viewModel.mostrarDialogoTransferencia() },
+                                podeEditar = podeEditar
                             )
                         }
                     }
@@ -265,6 +267,7 @@ fun TimesAtuaisScreen(
                             // Botão para cancelar a pelada
                             Button(
                                 onClick = { showDialogCancelar = true },
+                                enabled = podeEditar,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(Dimensions.standardButtonHeight),
@@ -289,6 +292,7 @@ fun TimesAtuaisScreen(
                             // Botão para finalizar a pelada
                             Button(
                                 onClick = { showDialogConfirmacao = true },
+                                enabled = podeEditar,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(Dimensions.standardButtonHeight),
@@ -332,7 +336,8 @@ fun TimeCard(
     onDiminuirVitoriaClick: () -> Unit = {},
     onDiminuirDerrotaClick: () -> Unit = {},
     onDiminuirEmpateClick: () -> Unit = {},
-    onSubstituicaoClick: () -> Unit = {} // Adicionando o parâmetro para substituição
+    onSubstituicaoClick: () -> Unit = {}, // Adicionando o parâmetro para substituição
+    podeEditar: Boolean = true
 ) {
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val dataFormatada = remember(time.dataUltimoSorteio) {
@@ -447,6 +452,7 @@ fun TimeCard(
                     // Botão de substituição
                     Button(
                         onClick = onSubstituicaoClick,
+                        enabled = podeEditar,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.secondary,
                             contentColor = MaterialTheme.colorScheme.onSecondary
@@ -505,7 +511,8 @@ fun TimeCard(
 
                     // Botão de edição para mostrar/esconder os controles
                     IconButton(
-                        onClick = { modoEdicao = !modoEdicao }
+                        onClick = { modoEdicao = !modoEdicao },
+                        enabled = podeEditar
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
