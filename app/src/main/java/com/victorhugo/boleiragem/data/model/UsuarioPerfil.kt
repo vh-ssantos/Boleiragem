@@ -8,5 +8,8 @@ package com.victorhugo.boleiragem.data.model
 data class UsuarioPerfil(
     val uid: String = "",
     val nome: String = "",
-    val email: String = ""
+    val email: String = "",
+    // Adicionados na tela "Meu Perfil" (Fase 3) — nulos pra quem nunca preencheu.
+    val posicaoFavorita: String? = null,
+    val idade: Int? = null
 )

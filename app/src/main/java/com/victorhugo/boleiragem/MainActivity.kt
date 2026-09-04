@@ -53,6 +53,7 @@ import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoPontuacaoSc
 import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoTimesScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.GerenciadorPerfisScreen
 import com.victorhugo.boleiragem.ui.screens.grupos.GrupoSyncViewModel
+import com.victorhugo.boleiragem.ui.screens.perfil.PerfilScreen
 import com.victorhugo.boleiragem.ui.screens.grupos.GruposPeladaScreen
 import com.victorhugo.boleiragem.ui.screens.historico.HistoricoScreen
 import com.victorhugo.boleiragem.ui.screens.login.LoginScreen
@@ -209,6 +210,14 @@ fun BoleiragemApp() {
                 onVoltarParaGerenciamento = {
                     showGruposScreen = true
                     showResultadoSorteioRapido = false
+                },
+                onSairClick = {
+                    // Mesmo fluxo do "Sair" na tela de grupos — chamado a partir da aba Perfil,
+                    // que vive dentro de MainScreen.
+                    FirebaseAuth.getInstance().signOut()
+                    showGruposScreen = false
+                    showLoginScreen = true
+                    showResultadoSorteioRapido = false
                 }
             )
         }
@@ -220,14 +229,15 @@ fun BoleiragemApp() {
 fun MainScreen(
     grupoId: Long = -1L,
     grupoNome: String = "",
-    onVoltarParaGerenciamento: () -> Unit = {}
+    onVoltarParaGerenciamento: () -> Unit = {},
+    onSairClick: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
-        pageCount = { 5 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas
+        pageCount = { 6 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas, Perfil
     )
 
     // Fase 2: enquanto este grupo está aberto, mantém a sincronização com o Firestore ativa
@@ -347,6 +357,7 @@ fun MainScreen(
                     )
                     3 -> TimesAtuaisScreen(grupoId = grupoId)
                     4 -> HistoricoScreen(grupoId = grupoId)
+                    5 -> PerfilScreen(onSairClick = onSairClick)
                 }
             }
         }

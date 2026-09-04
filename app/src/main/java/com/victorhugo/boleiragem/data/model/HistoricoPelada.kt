@@ -30,7 +30,13 @@ data class HistoricoTimeSnapshot(
     val empates: Int,
     val jogadoresIds: List<Long>,
     val mediaEstrelas: Float,
-    val mediaPontuacao: Float
+    val mediaPontuacao: Float,
+    // UIDs dos jogadores deste time que têm conta (Fase 3) — usado para agregar o "Meu Histórico"
+    // pessoal por usuário. Precisa ser o uid (estável entre dispositivos), não jogadoresIds (Long
+    // autogerado pelo Room, que não é o mesmo id em dois dispositivos depois de um pull do Firestore).
+    // Nullable e não List vazia por padrão: este campo é serializado como JSON (ver Converters.kt) e o
+    // Gson não aplica valores padrão do Kotlin ao desserializar registros salvos antes deste campo existir.
+    val usuariosUids: List<String>? = null
 )
 
 /**

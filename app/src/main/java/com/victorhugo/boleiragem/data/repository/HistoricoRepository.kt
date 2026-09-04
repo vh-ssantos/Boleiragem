@@ -7,6 +7,7 @@ import com.victorhugo.boleiragem.data.model.toLocal
 import com.victorhugo.boleiragem.data.model.toSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -17,7 +18,8 @@ class HistoricoRepository @Inject constructor(
     private val historicoPeladaDao: HistoricoPeladaDao,
     private val grupoPeladaRepository: GrupoPeladaRepository,
     private val authRepository: AuthRepository,
-    private val historicoSyncRepository: HistoricoSyncRepository
+    private val historicoSyncRepository: HistoricoSyncRepository,
+    private val jogadorRepository: JogadorRepository
 ) {
     fun getHistoricoPartidas(): Flow<List<HistoricoPelada>> {
         return historicoPeladaDao.getHistoricoPartidas()
@@ -28,8 +30,12 @@ class HistoricoRepository @Inject constructor(
 
     // Suspend (não fire-and-forget) para permitir encadear um push de sincronização depois do write local.
     suspend fun salvarPeladaFinalizada(times: List<HistoricoTime>) {
-        // Criamos um snapshot dos times para armazenar no histórico
-        val timeSnapshots = times.map { it.toSnapshot() }
+        // Criamos um snapshot dos times para armazenar no histórico, marcando quais jogadores de
+        // cada time têm conta vinculada (usuarioUid) — é isso que alimenta o "Meu Histórico" pessoal.
+        val timeSnapshots = times.map { time ->
+            val usuariosUids = time.jogadoresIds.mapNotNull { jogadorRepository.getJogadorPorId(it)?.usuarioUid }
+            time.toSnapshot().copy(usuariosUids = usuariosUids)
+        }
 
         // Criamos um novo registro de pelada finalizada
         val novaPelada = HistoricoPelada(
@@ -75,4 +81,36 @@ class HistoricoRepository @Inject constructor(
                 }
             }
         }
+
+    // "Meu Histórico" (tela de Perfil): estatísticas pessoais do usuário, agregadas cross-grupo a
+    // partir de todas as peladas finalizadas que este dispositivo conhece (locais + sincronizadas
+    // via Fase 2). Só existe pra quem tem usuarioUid — convidado não tem como aparecer aqui.
+    suspend fun getEstatisticasPessoais(usuarioUid: String): EstatisticasPessoais {
+        val peladas = historicoPeladaDao.getHistoricoPartidas().first()
+        var peladasJogadas = 0
+        var vitorias = 0
+        var derrotas = 0
+        var empates = 0
+
+        peladas.forEach { pelada ->
+            val timesDoUsuario = pelada.times.filter { it.usuariosUids?.contains(usuarioUid) == true }
+            if (timesDoUsuario.isNotEmpty()) {
+                peladasJogadas++
+                timesDoUsuario.forEach { time ->
+                    vitorias += time.vitorias
+                    derrotas += time.derrotas
+                    empates += time.empates
+                }
+            }
+        }
+
+        return EstatisticasPessoais(peladasJogadas, vitorias, derrotas, empates)
+    }
 }
+
+data class EstatisticasPessoais(
+    val peladasJogadas: Int = 0,
+    val vitorias: Int = 0,
+    val derrotas: Int = 0,
+    val empates: Int = 0
+)

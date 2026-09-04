@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -58,6 +59,11 @@ fun BoleiragemBottomNavigationBar(
             route = NavDestinations.Historico.route,
             title = "Estatísticas",
             icon = Icons.Default.BarChart
+        ),
+        BottomNavItem(
+            route = NavDestinations.Perfil.route,
+            title = "Perfil",
+            icon = Icons.Default.AccountCircle
         )
     )
 
