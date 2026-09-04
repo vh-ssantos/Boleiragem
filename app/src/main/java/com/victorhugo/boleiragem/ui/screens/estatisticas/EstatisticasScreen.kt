@@ -352,28 +352,19 @@ fun JogadorIndividualTab(
     }
 }
 
+// Redesign (1ª onda): delega pro StatTile compartilhado (ui/common) em vez de desenhar o próprio
+// par valor+rótulo — mesmo componente usado em "Meu Histórico" da tela de Perfil.
 @Composable
 fun EstatisticaItem(
     titulo: String,
     valor: String,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    com.victorhugo.boleiragem.ui.common.StatTile(
+        valor = valor,
+        titulo = titulo,
         modifier = modifier.padding(8.dp)
-    ) {
-        Text(
-            text = titulo,
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-        )
-        Text(
-            text = valor,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
+    )
 }
 
 @Composable

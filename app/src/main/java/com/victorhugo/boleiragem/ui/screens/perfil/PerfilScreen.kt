@@ -19,8 +19,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,7 +41,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.victorhugo.boleiragem.data.model.PosicaoJogador
+import com.victorhugo.boleiragem.ui.common.EmptyState
 import com.victorhugo.boleiragem.ui.common.OutlinedTextFieldComAcentos
+import com.victorhugo.boleiragem.ui.common.SectionCard
+import com.victorhugo.boleiragem.ui.common.StatTile
 
 private fun PosicaoJogador.nomeExibicao(): String =
     name.lowercase().split("_").joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
@@ -86,31 +87,14 @@ fun PerfilScreen(
 
 @Composable
 private fun PerfilConvidado(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Info,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(48.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Você está usando o Boleiragem sem conta",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Sem conta, não é possível ter um perfil nem um histórico entre peladas — " +
-                "só o resultado da pelada mais recente jogada neste aparelho fica disponível. " +
-                "Entre com e-mail ou Google para ter perfil e histórico completos.",
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-    }
+    EmptyState(
+        icone = Icons.Filled.Info,
+        titulo = "Você está usando o Boleiragem sem conta",
+        descricao = "Sem conta, não é possível ter um perfil nem um histórico entre peladas — " +
+            "só o resultado da pelada mais recente jogada neste aparelho fica disponível. " +
+            "Entre com e-mail ou Google para ter perfil e histórico completos.",
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -165,18 +149,8 @@ private fun PerfilAutenticado(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Dados do perfil",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
+        SectionCard(titulo = "Dados do perfil") {
+            Column {
                 OutlinedTextFieldComAcentos(
                     value = uiState.nome,
                     onValueChange = onNomeChange,
@@ -279,45 +253,25 @@ private fun PerfilAutenticado(
 
 @Composable
 private fun MeuHistoricoCard(estatisticas: com.victorhugo.boleiragem.data.repository.EstatisticasPessoais?) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    SectionCard(
+        titulo = "Meu histórico",
+        subtitulo = "Peladas jogadas em todos os grupos, neste aparelho"
+    ) {
+        if (estatisticas == null || estatisticas.peladasJogadas == 0) {
             Text(
-                text = "Meu histórico",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                text = "Você ainda não finalizou nenhuma pelada como jogador vinculado à sua conta.",
+                style = MaterialTheme.typography.bodyMedium
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Peladas jogadas em todos os grupos, neste aparelho",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (estatisticas == null || estatisticas.peladasJogadas == 0) {
-                Text(
-                    text = "Você ainda não finalizou nenhuma pelada como jogador vinculado à sua conta.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    EstatisticaItemPerfil("Peladas", estatisticas.peladasJogadas.toString())
-                    EstatisticaItemPerfil("Vitórias", estatisticas.vitorias.toString())
-                    EstatisticaItemPerfil("Empates", estatisticas.empates.toString())
-                    EstatisticaItemPerfil("Derrotas", estatisticas.derrotas.toString())
-                }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                StatTile(estatisticas.peladasJogadas.toString(), "Peladas")
+                StatTile(estatisticas.vitorias.toString(), "Vitórias")
+                StatTile(estatisticas.empates.toString(), "Empates")
+                StatTile(estatisticas.derrotas.toString(), "Derrotas")
             }
         }
-    }
-}
-
-@Composable
-private fun EstatisticaItemPerfil(titulo: String, valor: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = valor, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(text = titulo, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
