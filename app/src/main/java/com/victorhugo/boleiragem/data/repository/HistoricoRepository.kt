@@ -106,6 +106,14 @@ class HistoricoRepository @Inject constructor(
 
         return EstatisticasPessoais(peladasJogadas, vitorias, derrotas, empates)
     }
+
+    // Tela "Meu Histórico" (Perfil): lista as peladas em que o usuário participou, mais recente primeiro.
+    fun observarPeladasDoUsuario(usuarioUid: String): Flow<List<HistoricoPelada>> =
+        getHistoricoPartidas().map { peladas ->
+            peladas
+                .filter { pelada -> pelada.times.any { it.usuariosUids?.contains(usuarioUid) == true } }
+                .sortedByDescending { it.dataFinalizacao }
+        }
 }
 
 data class EstatisticasPessoais(
