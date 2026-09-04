@@ -59,4 +59,7 @@ interface JogadorDao {
 
     @Query("SELECT * FROM jogadores WHERE firestoreId = :firestoreId LIMIT 1")
     suspend fun getJogadorPorFirestoreId(firestoreId: String): Jogador?
+
+    @Query("SELECT * FROM jogadores WHERE grupoId = :grupoId AND usuarioUid = :usuarioUid LIMIT 1")
+    suspend fun getJogadorPorUsuarioUid(grupoId: Long, usuarioUid: String): Jogador?
 }

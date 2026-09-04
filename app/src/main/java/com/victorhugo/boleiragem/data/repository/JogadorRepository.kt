@@ -2,6 +2,7 @@ package com.victorhugo.boleiragem.data.repository
 
 import com.victorhugo.boleiragem.data.dao.JogadorDao
 import com.victorhugo.boleiragem.data.model.Jogador
+import com.victorhugo.boleiragem.data.model.PosicaoJogador
 import com.victorhugo.boleiragem.data.model.toLocal
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -56,6 +57,23 @@ class JogadorRepository @Inject constructor(
     }
 
     suspend fun getJogadorPorId(id: Long): Jogador? = jogadorDao.getJogadorPorId(id)
+
+    // Fase 3: garante que todo usuário autenticado (não-convidado) tem um Jogador vinculado a si
+    // em cada grupo em que participa — "cada usuário é um jogador". Convidado nunca chama isto
+    // (não tem uid), então continua sem vínculo, exatamente como hoje.
+    suspend fun garantirJogadorDoUsuario(grupoId: Long, usuarioUid: String, nomeSugerido: String?) {
+        if (jogadorDao.getJogadorPorUsuarioUid(grupoId, usuarioUid) != null) return
+        val novoJogador = Jogador(
+            grupoId = grupoId,
+            nome = nomeSugerido?.takeIf { it.isNotBlank() } ?: "Jogador",
+            posicaoPrincipal = PosicaoJogador.MEIO_CAMPO,
+            posicaoSecundaria = null,
+            notaPosicaoPrincipal = 3,
+            notaPosicaoSecundaria = null,
+            usuarioUid = usuarioUid
+        )
+        inserirJogador(novoJogador)
+    }
 
     // Métodos para registrar estatísticas de jogadores após as peladas
     suspend fun registrarVitoria(jogadoresIds: List<Long>, pontuacao: Int) {

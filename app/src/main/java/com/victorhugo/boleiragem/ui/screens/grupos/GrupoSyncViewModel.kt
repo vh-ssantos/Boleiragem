@@ -15,10 +15,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Ponto único de entrada da sincronização Fase 2: enquanto um grupo compartilhado está aberto em
- * MainScreen, mantém os 4 listeners remotos (jogadores/histórico/configuração de sorteio/pontuação)
- * ativos, replicando mudanças de outros dispositivos para o Room local. Grupos locais (sem
- * firestoreId) ou modo convidado (sem usuário autenticado) não acionam nada aqui.
+ * Ponto único de entrada da Fase 2 (sync de conteúdo) e Fase 3 (vínculo Jogador-usuário), acionado
+ * sempre que MainScreen abre um grupo:
+ * - Fase 3, roda pra qualquer grupo (local ou compartilhado) enquanto houver usuário autenticado:
+ *   garante que esse usuário tem um Jogador vinculado a si (`usuarioUid`) neste grupo. Convidado
+ *   nunca tem uid, então nunca aciona isto — comportamento igual ao de hoje pra convidado.
+ * - Fase 2, só roda se o grupo também tiver `firestoreId` (já foi compartilhado): mantém os 4
+ *   listeners remotos (jogadores/histórico/configuração de sorteio/pontuação) ativos, replicando
+ *   mudanças de outros dispositivos para o Room local.
  */
 @HiltViewModel
 class GrupoSyncViewModel @Inject constructor(
@@ -34,9 +38,12 @@ class GrupoSyncViewModel @Inject constructor(
 
     fun sincronizarGrupo(grupoId: Long) {
         jobSincronizacao?.cancel()
-        if (grupoId <= 0 || authRepository.usuarioAtual == null) return
+        if (grupoId <= 0) return
+        val usuario = authRepository.usuarioAtual ?: return // convidado: nada a fazer aqui
 
         jobSincronizacao = viewModelScope.launch {
+            jogadorRepository.garantirJogadorDoUsuario(grupoId, usuario.uid, usuario.displayName)
+
             val grupo = grupoPeladaRepository.getGrupoPorId(grupoId) ?: return@launch
             val grupoFirestoreId = grupo.firestoreId ?: return@launch
 
