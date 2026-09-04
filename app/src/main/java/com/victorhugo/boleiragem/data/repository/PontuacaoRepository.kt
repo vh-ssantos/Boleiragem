@@ -4,11 +4,16 @@ import com.victorhugo.boleiragem.data.dao.ConfiguracaoPontuacaoDao
 import com.victorhugo.boleiragem.data.dao.JogadorDao
 import com.victorhugo.boleiragem.data.model.ConfiguracaoPontuacao
 import com.victorhugo.boleiragem.data.model.HistoricoTime
-import kotlinx.coroutines.CoroutineScope
+import com.victorhugo.boleiragem.data.model.Jogador
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,82 +23,69 @@ class PontuacaoRepository @Inject constructor(
     private val configuracaoPontuacaoDao: ConfiguracaoPontuacaoDao,
     private val jogadorDao: JogadorDao
 ) {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    // Configuração de pontuação agora é por grupo (antes era um singleton global de id fixo = 1,
+    // o que fazia todos os grupos compartilharem a mesma pontuação — bug de antes do multi-grupo).
+    private val _grupoIdAtualFlow = MutableStateFlow(0L)
+    private val mutex = Mutex()
+    private val configuracoesPadraoCriadas = mutableSetOf<Long>()
 
-    // Obtém a configuração atual de pontuação
-    fun getConfiguracaoPontuacao(): Flow<ConfiguracaoPontuacao> {
-        return configuracaoPontuacaoDao.getConfiguracaoPontuacao()
+    fun setGrupoId(id: Long) {
+        _grupoIdAtualFlow.value = id
     }
 
-    // Atualiza a configuração de pontuação
+    // Obtém a configuração de pontuação do grupo atual (definido via setGrupoId) de forma reativa
+    fun getConfiguracaoPontuacao(): Flow<ConfiguracaoPontuacao> =
+        _grupoIdAtualFlow.flatMapLatest { grupoId -> getConfiguracaoPontuacao(grupoId) }
+
+    fun getConfiguracaoPontuacao(grupoId: Long): Flow<ConfiguracaoPontuacao> =
+        configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).map {
+            it ?: criarConfiguracaoPadrao(grupoId)
+        }
+
+    // Atualiza a configuração de pontuação de um grupo
     suspend fun atualizarConfiguracaoPontuacao(configuracao: ConfiguracaoPontuacao) {
-        // Garantir que estamos sempre usando o ID 1 para a configuração de pontuação
-        val configComIdCorreto = configuracao.copy(id = 1)
+        val grupoId = configuracao.grupoId
+        val existente = configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).firstOrNull()
+        val configParaSalvar = configuracao.copy(id = existente?.id ?: 0)
 
-        try {
-            // Tenta atualizar primeiro
-            val linhasAtualizadas = configuracaoPontuacaoDao.atualizarConfiguracaoPontuacao(configComIdCorreto)
-
-            // Se nenhuma linha foi atualizada, então o registro não existe e precisamos inserir
-            if (linhasAtualizadas.equals(0)) {
-                configuracaoPontuacaoDao.inserirConfiguracaoPontuacao(configComIdCorreto)
-            }
-
-            // Depois de salvar, recalcula a pontuação dos jogadores
-            recalcularPontuacaoJogadores()
-        } catch (_: Exception) {
-            // Em caso de falha, tenta inserir diretamente
-            try {
-                configuracaoPontuacaoDao.inserirConfiguracaoPontuacao(configComIdCorreto)
-                recalcularPontuacaoJogadores()
-            } catch (innerE: Exception) {
-                innerE.printStackTrace()
-                throw innerE  // Propaga a exceção para tratamento superior
-            }
+        val linhasAtualizadas = if (configParaSalvar.id != 0L) {
+            configuracaoPontuacaoDao.atualizarConfiguracaoPontuacao(configParaSalvar)
+        } else {
+            0
         }
+
+        // Se nenhuma linha foi atualizada (config ainda não existe para este grupo), insere
+        if (linhasAtualizadas == 0) {
+            configuracaoPontuacaoDao.inserirConfiguracaoPontuacao(configParaSalvar.copy(id = 0))
+        }
+
+        configuracoesPadraoCriadas.add(grupoId)
+        recalcularPontuacaoJogadores(grupoId)
     }
 
-    // Finaliza a partida e atualiza as estatísticas dos jogadores
+    // Finaliza a partida e atualiza as estatísticas dos jogadores de um grupo
     suspend fun finalizarPartida(times: List<HistoricoTime>) {
-        val configuracao = withContext(Dispatchers.IO) {
-            configuracaoPontuacaoDao.getConfiguracaoPontuacao().first()
-        }
+        val grupoId = times.firstOrNull()?.grupoId ?: return
+        val configuracao = getConfiguracaoPontuacao(grupoId).first()
 
         val todosJogadores = withContext(Dispatchers.IO) {
             jogadorDao.getJogadoresList()
         }
-
         val jogadoresMapa = todosJogadores.associateBy { it.id }
 
-        // Para cada time, atualiza os jogadores com vitórias, derrotas ou empates
         times.forEach { time ->
-            val jogadoresIds = time.jogadoresIds
-
-            // Atualizar as estatísticas de cada jogador do time
-            jogadoresIds.forEach { jogadorId ->
+            time.jogadoresIds.forEach { jogadorId ->
                 jogadoresMapa[jogadorId]?.let { jogador ->
-                    // Criar uma cópia do jogador com as estatísticas atualizadas
                     val jogadorAtualizado = jogador.copy(
                         totalJogos = jogador.totalJogos + 1,
                         vitorias = jogador.vitorias + if (time.vitorias > 0) 1 else 0,
                         derrotas = jogador.derrotas + if (time.derrotas > 0) 1 else 0,
                         empates = jogador.empates + if (time.empates > 0) 1 else 0
                     )
-
-                    // Calcular a pontuação
-                    val pontuacaoVitorias = jogadorAtualizado.vitorias * configuracao.pontosPorVitoria
-                    val pontuacaoDerrotas = jogadorAtualizado.derrotas * configuracao.pontosPorDerrota
-                    val pontuacaoEmpates = jogadorAtualizado.empates * configuracao.pontosPorEmpate
-
-                    val pontuacaoTotal = pontuacaoVitorias + pontuacaoDerrotas + pontuacaoEmpates
-
-                    // Atualizar o jogador com a nova pontuação
                     val jogadorComPontuacao = jogadorAtualizado.copy(
-                        pontuacaoTotal = pontuacaoTotal
+                        pontuacaoTotal = calcularPontuacao(jogadorAtualizado, configuracao)
                     )
-
-                    // Salvar o jogador atualizado
-                    scope.launch {
+                    withContext(Dispatchers.IO) {
                         jogadorDao.atualizarJogador(jogadorComPontuacao)
                     }
                 }
@@ -101,65 +93,62 @@ class PontuacaoRepository @Inject constructor(
         }
     }
 
-    // Recalcula a pontuação de todos os jogadores com base na configuração atual
-    private suspend fun recalcularPontuacaoJogadores() {
-        val configuracao = withContext(Dispatchers.IO) {
-            configuracaoPontuacaoDao.getConfiguracaoPontuacao().first()
-        }
+    // Recalcula a pontuação de todos os jogadores de um grupo com base na configuração atual dele
+    private suspend fun recalcularPontuacaoJogadores(grupoId: Long) {
+        val configuracao = configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).firstOrNull() ?: return
 
         val jogadores = withContext(Dispatchers.IO) {
-            jogadorDao.getJogadoresList()
+            jogadorDao.getJogadoresListPorGrupo(grupoId)
         }
 
-        // Utiliza withContext para garantir que todas as atualizações sejam concluídas
         withContext(Dispatchers.IO) {
             jogadores.forEach { jogador ->
-                // Calcular a pontuação com base na nova configuração
-                val pontuacaoVitorias = jogador.vitorias * configuracao.pontosPorVitoria
-                val pontuacaoDerrotas = jogador.derrotas * configuracao.pontosPorDerrota
-                val pontuacaoEmpates = jogador.empates * configuracao.pontosPorEmpate
-
-                val novaPontuacaoTotal = pontuacaoVitorias + pontuacaoDerrotas + pontuacaoEmpates
-
-                // Atualizar o jogador apenas se a pontuação mudou
+                val novaPontuacaoTotal = calcularPontuacao(jogador, configuracao)
                 if (novaPontuacaoTotal != jogador.pontuacaoTotal) {
-                    val jogadorAtualizado = jogador.copy(
-                        pontuacaoTotal = novaPontuacaoTotal
-                    )
-
-                    // Atualiza o jogador diretamente, sem usar launch
-                    jogadorDao.atualizarJogador(jogadorAtualizado)
+                    jogadorDao.atualizarJogador(jogador.copy(pontuacaoTotal = novaPontuacaoTotal))
                 }
             }
         }
-
-        // Pequeno atraso para garantir que as atualizações sejam refletidas no banco de dados
-        kotlinx.coroutines.delay(200)
     }
 
-    // Atualiza as estatísticas e a pontuação de um jogador específico
-    suspend fun atualizarPontuacaoJogador(jogador: com.victorhugo.boleiragem.data.model.Jogador) {
+    // Atualiza as estatísticas e a pontuação de um jogador específico, usando a config do grupo informado
+    suspend fun atualizarPontuacaoJogador(jogador: Jogador, grupoId: Long) {
         try {
-            // Obter a configuração atual de pontuação
-            val configuracao = withContext(Dispatchers.IO) {
-                configuracaoPontuacaoDao.getConfiguracaoPontuacao().first()
-            }
-
-            // Calcular a pontuação com base nas estatísticas atualizadas
-            val pontuacaoVitorias = jogador.vitorias * configuracao.pontosPorVitoria
-            val pontuacaoDerrotas = jogador.derrotas * configuracao.pontosPorDerrota
-            val pontuacaoEmpates = jogador.empates * configuracao.pontosPorEmpate
-            val pontuacaoTotal = pontuacaoVitorias + pontuacaoDerrotas + pontuacaoEmpates
-
-            // Criar uma cópia do jogador com a pontuação atualizada
-            val jogadorComPontuacao = jogador.copy(pontuacaoTotal = pontuacaoTotal)
-
-            // Salvar o jogador atualizado no banco de dados
+            val configuracao = getConfiguracaoPontuacao(grupoId).first()
+            val jogadorComPontuacao = jogador.copy(pontuacaoTotal = calcularPontuacao(jogador, configuracao))
             withContext(Dispatchers.IO) {
                 jogadorDao.atualizarJogador(jogadorComPontuacao)
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun calcularPontuacao(jogador: Jogador, configuracao: ConfiguracaoPontuacao): Int {
+        return jogador.vitorias * configuracao.pontosPorVitoria +
+            jogador.derrotas * configuracao.pontosPorDerrota +
+            jogador.empates * configuracao.pontosPorEmpate
+    }
+
+    // Cria e salva uma configuração padrão para o grupo, se ainda não existir nenhuma
+    private suspend fun criarConfiguracaoPadrao(grupoId: Long): ConfiguracaoPontuacao {
+        return mutex.withLock {
+            if (grupoId in configuracoesPadraoCriadas) {
+                configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).firstOrNull()?.let {
+                    return@withLock it
+                }
+            }
+
+            val existente = configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).firstOrNull()
+            if (existente != null) {
+                configuracoesPadraoCriadas.add(grupoId)
+                return@withLock existente
+            }
+
+            val novaConfig = ConfiguracaoPontuacao(grupoId = grupoId)
+            configuracaoPontuacaoDao.inserirConfiguracaoPontuacao(novaConfig)
+            configuracoesPadraoCriadas.add(grupoId)
+            configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).first() ?: novaConfig
         }
     }
 }

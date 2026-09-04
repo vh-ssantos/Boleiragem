@@ -193,6 +193,7 @@ class SorteioTimesViewModel @Inject constructor(
 
                 // Realiza o sorteio através do use case
                 val resultado = sorteioUseCase.sortearTimes(jogadoresList, config)
+                    .copy(grupoId = _grupoId.value)
 
                 // IMPORTANTE: Salvar o resultado no repositório para que a tela de resultado possa acessá-lo
                 sorteioRepository.salvarResultadoSorteio(resultado)

@@ -18,7 +18,7 @@ class ConfiguracaoPontuacaoViewModel @Inject constructor(
 ) : ViewModel() {
 
     // Inicializa com um objeto padrão para evitar NullPointerException
-    private val _configuracaoPontuacao = MutableStateFlow(ConfiguracaoPontuacao(id = 1, pontosPorVitoria = 10, pontosPorDerrota = -10, pontosPorEmpate = -5))
+    private val _configuracaoPontuacao = MutableStateFlow(ConfiguracaoPontuacao(pontosPorVitoria = 10, pontosPorDerrota = -10, pontosPorEmpate = -5))
     val configuracaoPontuacao: StateFlow<ConfiguracaoPontuacao> = _configuracaoPontuacao.asStateFlow()
 
     private val _salvandoConfiguracao = MutableStateFlow(false)
@@ -27,17 +27,20 @@ class ConfiguracaoPontuacaoViewModel @Inject constructor(
     private val _configuracaoSalva = MutableStateFlow(false)
     val configuracaoSalva: StateFlow<Boolean> = _configuracaoSalva.asStateFlow()
 
-    init {
+    private val _grupoId = MutableStateFlow(-1L)
+
+    // Chamado pela tela via LaunchedEffect(grupoId), mesmo padrão das demais telas do app
+    fun setGrupoId(id: Long) {
+        if (_grupoId.value == id) return
+        _grupoId.value = id
+        pontuacaoRepository.setGrupoId(id)
         carregarConfiguracao()
     }
 
     private fun carregarConfiguracao() {
         viewModelScope.launch {
             pontuacaoRepository.getConfiguracaoPontuacao().collect { configuracao ->
-                // Só atualiza se a configuração não for nula
-                if (configuracao != null) {
-                    _configuracaoPontuacao.value = configuracao
-                }
+                _configuracaoPontuacao.value = configuracao
             }
         }
     }

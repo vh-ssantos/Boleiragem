@@ -19,7 +19,9 @@ data class HistoricoTime(
     val mediaEstrelas: Float = 0f,
     val mediaPontuacao: Float = 0f,
     val isUltimoPelada: Boolean = false,
-    val ehTimeReserva: Boolean = false
+    val ehTimeReserva: Boolean = false,
+    // Grupo ao qual este time pertence. -1 = registro antigo, salvo antes deste campo existir.
+    val grupoId: Long = -1L
 )
 
 data class HistoricoSorteio(

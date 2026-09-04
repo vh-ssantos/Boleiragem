@@ -30,7 +30,7 @@ import java.util.Locale
         HistoricoPelada::class,
         GrupoPelada::class
     ],
-    version = 14, // Incrementado de 13 para 14 para o vínculo com o Firestore (firestoreId)
+    version = 15, // Incrementado de 14 para 15 para sync de conteúdo (Fase 2) e vínculo Jogador-usuário (Fase 3)
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -388,6 +388,56 @@ abstract class BoleiragemDatabase : RoomDatabase() {
                 // Coluna que vincula um grupo local ao documento correspondente na coleção "grupos" do Firestore,
                 // quando o grupo é compartilhado com outras pessoas. Null = grupo ainda é só local.
                 database.execSQL("ALTER TABLE grupo_pelada ADD COLUMN firestoreId TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Fase 2 (sync de conteúdo) e Fase 3 (vínculo Jogador-usuário): colunas de rastreio de
+                // sincronização com o Firestore (firestoreId/atualizadoEm) nas entidades de conteúdo de um grupo,
+                // e o vínculo usuarioUid em Jogador.
+                database.execSQL("ALTER TABLE jogadores ADD COLUMN firestoreId TEXT DEFAULT NULL")
+                database.execSQL("ALTER TABLE jogadores ADD COLUMN atualizadoEm INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE jogadores ADD COLUMN usuarioUid TEXT DEFAULT NULL")
+
+                database.execSQL("ALTER TABLE configuracao_sorteio ADD COLUMN firestoreId TEXT DEFAULT NULL")
+                database.execSQL("ALTER TABLE configuracao_sorteio ADD COLUMN atualizadoEm INTEGER NOT NULL DEFAULT 0")
+
+                // historico_time e historico_pelada nunca tiveram grupoId — bug pré-existente que impedia
+                // filtrar times/histórico por grupo (ver SorteioRepository.getTimesUltimaPeladaPorGrupo, que
+                // antes ignorava o parâmetro). -1 marca registros salvos antes deste campo existir.
+                database.execSQL("ALTER TABLE historico_time ADD COLUMN grupoId INTEGER NOT NULL DEFAULT -1")
+                database.execSQL("ALTER TABLE historico_pelada ADD COLUMN grupoId INTEGER NOT NULL DEFAULT -1")
+                database.execSQL("ALTER TABLE historico_pelada ADD COLUMN firestoreId TEXT DEFAULT NULL")
+                database.execSQL("ALTER TABLE historico_pelada ADD COLUMN atualizadoEm INTEGER NOT NULL DEFAULT 0")
+
+                // configuracao_pontuacao era um singleton global (id fixo = 1, compartilhado por todos os grupos) —
+                // outro bug pré-existente num app multi-grupo. Reconstruímos a tabela com id autogerado e uma
+                // linha por grupo, herdando os valores da configuração global antiga para cada grupo já existente.
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `configuracao_pontuacao_temp` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `pontosPorVitoria` INTEGER NOT NULL,
+                        `pontosPorDerrota` INTEGER NOT NULL,
+                        `pontosPorEmpate` INTEGER NOT NULL,
+                        `grupoId` INTEGER NOT NULL DEFAULT 0,
+                        `firestoreId` TEXT,
+                        `atualizadoEm` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                database.execSQL(
+                    """
+                    INSERT INTO configuracao_pontuacao_temp (pontosPorVitoria, pontosPorDerrota, pontosPorEmpate, grupoId)
+                    SELECT antiga.pontosPorVitoria, antiga.pontosPorDerrota, antiga.pontosPorEmpate, grupo.id
+                    FROM grupo_pelada AS grupo
+                    CROSS JOIN configuracao_pontuacao AS antiga
+                    WHERE antiga.id = 1
+                    """
+                )
+                database.execSQL("DROP TABLE configuracao_pontuacao")
+                database.execSQL("ALTER TABLE configuracao_pontuacao_temp RENAME TO configuracao_pontuacao")
             }
         }
     }

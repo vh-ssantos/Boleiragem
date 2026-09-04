@@ -25,6 +25,9 @@ interface HistoricoTimeDao {
     @Query("SELECT * FROM historico_time WHERE isUltimoPelada = 1")
     fun getTimesUltimaPelada(): Flow<List<HistoricoTime>>
 
+    @Query("SELECT * FROM historico_time WHERE isUltimoPelada = 1 AND grupoId = :grupoId")
+    fun getTimesUltimaPeladaPorGrupo(grupoId: Long): Flow<List<HistoricoTime>>
+
     @Query("UPDATE historico_time SET isUltimoPelada = 0")
     suspend fun limparUltimaPelada()
 

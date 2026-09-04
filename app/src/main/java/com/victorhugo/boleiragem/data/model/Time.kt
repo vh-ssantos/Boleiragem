@@ -10,5 +10,6 @@ data class Time(
 data class ResultadoSorteio(
     val times: List<Time>,
     val tipoDeSorteio: String = "",
-    val dataHoraSorteio: Long = System.currentTimeMillis()
+    val dataHoraSorteio: Long = System.currentTimeMillis(),
+    val grupoId: Long = -1L
 )

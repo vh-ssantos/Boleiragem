@@ -312,6 +312,7 @@ fun MainScreen(
                             isSecondaryScreen = true
                             secondaryScreenContent = {
                                 ConfiguracaoPontuacaoScreen(
+                                    grupoId = grupoId,
                                     onBackClick = { isSecondaryScreen = false }
                                 )
                             }

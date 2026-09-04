@@ -312,7 +312,7 @@ class HistoricoTimesViewModel @Inject constructor(
             )
 
             // Atualizar a pontuação e salvar o jogador no banco de dados
-            pontuacaoRepository.atualizarPontuacaoJogador(jogadorAtualizado)
+            pontuacaoRepository.atualizarPontuacaoJogador(jogadorAtualizado, _grupoId.value)
         }
     }
 

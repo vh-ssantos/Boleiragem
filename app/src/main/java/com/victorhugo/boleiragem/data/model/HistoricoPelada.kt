@@ -11,7 +11,12 @@ data class HistoricoPelada(
     val id: Long = 0,
     val dataFinalizacao: Long = System.currentTimeMillis(),
     @TypeConverters(Converters::class)
-    val times: List<HistoricoTimeSnapshot> = emptyList()
+    val times: List<HistoricoTimeSnapshot> = emptyList(),
+    // Grupo ao qual esta pelada pertence. -1 = pelada antiga, salva antes deste campo existir.
+    val grupoId: Long = -1L,
+    // ID do documento correspondente na subcoleção "historico" do Firestore, quando o grupo sincroniza. Null = só local.
+    val firestoreId: String? = null,
+    val atualizadoEm: Long = 0L
 )
 
 /**

@@ -10,12 +10,14 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ConfiguracaoPontuacaoDao {
-    @Query("SELECT * FROM configuracao_pontuacao WHERE id = 1")
-    fun getConfiguracaoPontuacao(): Flow<ConfiguracaoPontuacao>
+    // Uma configuração por grupo agora (antes era um singleton global de id fixo = 1).
+    @Query("SELECT * FROM configuracao_pontuacao WHERE grupoId = :grupoId LIMIT 1")
+    fun getConfiguracaoPontuacao(grupoId: Long): Flow<ConfiguracaoPontuacao?>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun inserirConfiguracaoPontuacao(configuracaoPontuacao: ConfiguracaoPontuacao)
+    suspend fun inserirConfiguracaoPontuacao(configuracaoPontuacao: ConfiguracaoPontuacao): Long
 
+    // Retorna o número de linhas afetadas — usado para decidir se é preciso inserir em vez de atualizar.
     @Update
-    suspend fun atualizarConfiguracaoPontuacao(configuracaoPontuacao: ConfiguracaoPontuacao)
+    suspend fun atualizarConfiguracaoPontuacao(configuracaoPontuacao: ConfiguracaoPontuacao): Int
 }

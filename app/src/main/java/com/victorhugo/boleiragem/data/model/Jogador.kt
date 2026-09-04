@@ -27,5 +27,10 @@ data class Jogador(
     val vitorias: Int = 0,
     val derrotas: Int = 0,
     val empates: Int = 0,
-    val pontuacaoTotal: Int = 0
+    val pontuacaoTotal: Int = 0,
+    // ID do documento correspondente na subcoleção "jogadores" do Firestore, quando este jogador sincroniza (grupo compartilhado). Null = só local.
+    val firestoreId: String? = null,
+    val atualizadoEm: Long = 0L,
+    // UID da conta Firebase que este jogador representa. Null para jogadores avulsos/criados por convidado (sem conta).
+    val usuarioUid: String? = null
 )

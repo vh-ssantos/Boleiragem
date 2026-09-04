@@ -69,8 +69,9 @@ class SorteioRepository @Inject constructor(
         _sorteioEmAndamento.value = false
     }
 
-    // Método para efetivamente salvar os times no banco de dados após confirmação do usuário
-    fun salvarTimesNoBancoDeDados(resultado: ResultadoSorteio) {
+    // Método para efetivamente salvar os times no banco de dados após confirmação do usuário.
+    // Suspend (não fire-and-forget) para permitir encadear um push de sincronização depois do write local.
+    suspend fun salvarTimesNoBancoDeDados(resultado: ResultadoSorteio) {
         val historicoTimes = resultado.times.map { time ->
             // Calcular a média de estrelas do time
             val mediaEstrelas = time.jogadores.map { jogador ->
@@ -88,12 +89,12 @@ class SorteioRepository @Inject constructor(
                 mediaEstrelas = mediaEstrelas,
                 mediaPontuacao = mediaPontuacao,
                 isUltimoPelada = true, // Marca como último sorteio realizado
-                ehTimeReserva = time.ehTimeReserva // Preserva a flag de time reserva
+                ehTimeReserva = time.ehTimeReserva, // Preserva a flag de time reserva
+                grupoId = resultado.grupoId
             )
         }
 
-        // Salvamos realmente no banco de dados usando o DAO
-        scope.launch {
+        withContext(Dispatchers.IO) {
             // Limpa a flag de última pelada para todos os times existentes
             historicoTimeDao.limparUltimaPelada()
 
@@ -101,13 +102,13 @@ class SorteioRepository @Inject constructor(
             historicoTimes.forEach { historicoTime ->
                 historicoTimeDao.inserirHistoricoTime(historicoTime)
             }
-
-            // Atualizamos a flag de pelada ativa
-            _temPeladaAtiva.value = true
-
-            // Mantemos a flag de sorteio não contabilizado
-            _temSorteioNaoContabilizado.value = true
         }
+
+        // Atualizamos a flag de pelada ativa
+        _temPeladaAtiva.value = true
+
+        // Mantemos a flag de sorteio não contabilizado
+        _temSorteioNaoContabilizado.value = true
     }
 
     fun setSorteioEmAndamento(emAndamento: Boolean) {
@@ -173,10 +174,7 @@ class SorteioRepository @Inject constructor(
 
     // Método para carregar os times da última pelada de um grupo específico
     fun getTimesUltimaPeladaPorGrupo(grupoId: Long): Flow<List<HistoricoTime>> {
-        // Como ainda não temos o campo grupoId na entidade HistoricoTime,
-        // vamos retornar todos os times da última pelada por enquanto
-        // Em uma futura atualização, você deve adicionar o campo grupoId à entidade HistoricoTime
-        return historicoTimeDao.getTimesUltimaPelada()
+        return historicoTimeDao.getTimesUltimaPeladaPorGrupo(grupoId)
     }
 
     // Método para registrar o resultado de uma pelada

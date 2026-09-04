@@ -44,8 +44,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 @Composable
 fun ConfiguracaoPontuacaoScreen(
     viewModel: ConfiguracaoPontuacaoViewModel = hiltViewModel(),
+    grupoId: Long = -1L,
     onBackClick: () -> Unit
 ) {
+    LaunchedEffect(grupoId) {
+        viewModel.setGrupoId(grupoId)
+    }
+
     val configuracao by viewModel.configuracaoPontuacao.collectAsState(null)
     val salvandoConfiguracao by viewModel.salvandoConfiguracao.collectAsState()
     val configuracaoSalva by viewModel.configuracaoSalva.collectAsState()
