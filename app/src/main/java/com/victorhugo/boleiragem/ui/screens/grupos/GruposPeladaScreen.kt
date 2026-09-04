@@ -72,6 +72,8 @@ fun GruposPeladaScreen(
     var mostrarDialogoSelecionarGrupoParaSorteioRapido by remember { mutableStateOf(false) }
     var mostrarDialogoColaLista by remember { mutableStateOf(false) }
     var mostrarDialogoOpcoesSorteio by remember { mutableStateOf(false) } // Novo estado
+    // Cronômetro solto (sem depender de grupo) — pedido pra funcionar mesmo antes de criar peladas
+    var mostrarCronometro by remember { mutableStateOf(false) }
 
     val navegarParaDetalheGrupo: (GrupoPelada) -> Unit = {
         grupo -> onGrupoSelecionado(grupo.id, grupo.nome)
@@ -189,6 +191,14 @@ fun GruposPeladaScreen(
             },
             floatingActionButton = {
                 Column(horizontalAlignment = Alignment.End) {
+                    FloatingActionButton(
+                        onClick = { mostrarCronometro = true },
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    ) {
+                        Icon(Icons.Filled.Timer, contentDescription = "Cronômetro")
+                    }
                     FloatingActionButton(
                         onClick = { viewModel.abrirDialogoEntrarComCodigo() },
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -324,6 +334,17 @@ fun GruposPeladaScreen(
                 }
             }
         )
+    }
+
+    if (mostrarCronometro) {
+        Dialog(
+            onDismissRequest = { mostrarCronometro = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            com.victorhugo.boleiragem.ui.screens.cronometro.CronometroScreen(
+                onBackClick = { mostrarCronometro = false }
+            )
+        }
     }
 
     // Novo diálogo de Opções de Sorteio

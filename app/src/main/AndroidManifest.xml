@@ -9,6 +9,9 @@
     <!-- Notificação de progresso ao baixar atualização via Firebase App Distribution (só builds de teste) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Vibração ao zerar o cronômetro regressivo -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:name=".BoleiragemApplication"
         android:allowBackup="true"
