@@ -22,7 +22,8 @@ Quick orientation for starting a new conversation without re-reading everything 
 - **Visual redesign**: 1ª onda shipped 2026-09-04 (theme tokens completed, `StatTile`/`SectionCard`/`EmptyState` added to `ui/common/`, applied to Perfil + Estatísticas). 2ª onda (rest of the screens) still pending — see Backlog.
 - **Verified with a real (single) Google account on 2026-09-04**: the Perfil sheet loads real nome/email/tipo de conta correctly, and the Fase 3 auto-created `Jogador` actually showed up in a grupo's jogadores list on first open, exactly as designed. **Still not verified** (needs a 2nd real account/device, not available in the session that shipped this): Fase 2 content sync actually propagating *between two different devices/accounts*; saving an edit on the Perfil form and having it persist; "Meu Histórico" populating with a non-empty result (no pelada had been finalized yet under that account when this was checked). Don't tell the user those specific things "work" until seen succeeding.
 - **Cronômetro**: standalone timer shipped 2026-09-04 — a FAB in `GruposPeladaScreen` ("Minhas Peladas") opens a full-screen `Dialog` with progressivo (count-up, manual stop) and regressivo (set a duration, counts down, beeps via `ToneGenerator` + vibrates via `Vibrator`/`VibratorManager` at zero) modes. Deliberately standalone (no grupo dependency) since early testers may not have created a grupo yet. State is 100% in-memory (`CronometroViewModel`, `AndroidViewModel`) — no persistence, resets if the process is killed in background; a foreground-service version (survives closed app) was explicitly deferred, only worth it if real usage asks for it. Verified end-to-end on the emulator (progressivo start/pause, regressivo counted 1 min to zero, alert fired, "Tempo esgotado!" showed, no exceptions).
-- **Known gap, found 2026-09-04, not yet fixed**: when someone joins a grupo via invite code today, they never get a local Room mirror of it — they only see a read-only stub card in "Grupos que você participa" (`SecaoGruposConvidado` in `GruposPeladaScreen.kt`, literally labeled "Sincronização completa chega em breve"). Tapping it only offers "Sair do grupo", never opens the grupo. This means the Fase 3 auto-created-`Jogador` and Fase 2 content sync (both shipped this session) **never trigger for a joined member** — only for the dono, who always has a local grupoId. Fixing this needs giving a joined member's device a local Room `GrupoPelada` mirror tied to the remote `firestoreId` so they can actually open `MainScreen` for it. Don't tell the user "if someone joins my grupo I'll see them inside it" — verified false as of this date.
+- **Fixed 2026-09-04 (was "known gap" above)**: joining a grupo by invite code now creates a local Room `GrupoPelada` mirror (idempotent by `firestoreId`) right after `entrarNoGrupo` succeeds, so a joined member's device gets a real `grupoId` and can open `MainScreen` for it — Fase 2/3 sync now actually triggers for non-owners too. See "Acesso de membros + permissões + Info do grupo" below for the full implementation. Verified on-device with the guest/dono path (see that section for what's still unverified with a real 2nd account).
+- **Known gap, still not fixed**: `GrupoRemotoRepository.atualizarDadosBasicos` exists but is never called from anywhere — editing a shared grupo's nome/local/horário locally does not push the change to Firestore, so other members never see it. Low priority until someone actually hits it.
 - **Distribution**: Firebase App Distribution is wired up (`./gradlew appDistributionUploadDebug`), plus an in-app "update available" check for testers. One external tester (a friend) has the app installed via this pipeline and has enabled test-build alerts.
 - **Known not-yet-verified**: the join-a-group-by-code flow end-to-end with two different real accounts. It failed once (Firestore rule bug, now fixed — see Fase 1 section), was never explicitly re-confirmed successful afterward in this session. Verify before telling the user it works.
 - **Biggest open architectural debt**: `MainActivity.kt` has three overlapping navigation mechanisms (see "Navigation is unusual" below) — read that before touching top-level or drill-down navigation.
@@ -170,6 +171,69 @@ User asked to tackle all 4 items of the 2026-09-02 backlog in one session, deleg
 **HistoricoTimeSnapshot gotcha**: gained a `usuariosUids: List<String>?` field (nullable, not the Kotlin-default empty list — this type is Gson-serialized as a JSON blob via `Converters.kt`, and Gson doesn't run Kotlin constructor defaults on missing fields when deserializing old records, so treat every read as `?: emptyList()`). It's populated in `HistoricoRepository.salvarPeladaFinalizada` by looking up each jogador's `usuarioUid`. This is what makes "Meu Histórico" aggregation correct **across devices** — matching by `usuarioUid` (stable) instead of `jogadoresIds` (local Room `Long`, which diverges between devices once a `Jogador` gets pulled via sync and re-inserted with a new local id).
 
 **Perfil**: `ui/screens/perfil/` — `PerfilMenuSheet.kt` (`PerfilAvatarButton`: avatar `IconButton` + the menu-only `ModalBottomSheet`), `PerfilViewModel.kt` (now also injects `GrupoPeladaRepository`/`GrupoRemotoRepository` for "Meus Grupos", exposes `peladasParticipadas`/`meusGrupos`/`redefinirSenha()`), and three full-screen `Dialog`s: `TelaMeuPerfil.kt`, `TelaMeuHistorico.kt`, `TelaMeusGrupos.kt` (see status snapshot for the menu-vs-tab history). `UsuarioPerfil` gained `posicaoFavorita`/`idade`; `UsuarioRepository.salvarPerfil` was changed from `.set(perfil)` (full overwrite) to `.set(dados, SetOptions.merge())` — the old version wiped those two fields back to null on every login, since it always overwrote the whole document. `HistoricoRepository.getEstatisticasPessoais(uid)` does the cross-grupo aggregation for "Meu Histórico" (peladas jogadas/vitórias/empates/derrotas only — no per-pelada pontuação is tracked at the snapshot level, so don't invent that stat). No avatar upload in this v1 (no Coil/Firebase Storage in the project — initials-circle avatar only); scope cut, not an oversight.
+
+## Acesso de membros + permissões + Info do grupo (shipped 2026-09-04)
+
+User asked for three things together: fix joined members never getting real local access to a
+grupo (see status snapshot), add a Dono/"Responsável"/Membro permission model where non-editors see
+the same screens with write controls disabled (not hidden), and add a first "Início" tab inside a
+grupo showing general info + a countdown to the next pelada — "a ideia é que as pessoas vejam o
+grupo e sintam que aquilo é de fato um grupo, uma comunidade". Not yet re-verified with a real 2nd
+account (see below) — smoke-tested single-device as dono/guest only.
+
+**Fase 1 — real access on join**: `GruposPeladaViewModel.confirmarEntrarNoGrupo()` now calls
+`criarEspelhoLocalSeNecessario` after `grupoRemotoRepository.entrarNoGrupo` succeeds, which inserts a
+local `GrupoPelada` (`compartilhado = true`, `firestoreId` set, recorrência copied from the
+`GrupoRemoto`) unless one already exists for that `firestoreId` — checked via the new
+`GrupoPeladaDao.getGrupoPeladaPorFirestoreId` / `GrupoPeladaRepository.getGrupoPorFirestoreId`, so
+rejoining never duplicates the local row. `GrupoRemoto` gained `tipoRecorrencia`/`diaSemana`/
+`diasSemana` fields (previously absent — a joined member's mirror had no schedule at all), populated
+by `GrupoRemotoRepository.criarGrupoCompartilhado`'s new parameters. The old "Grupos que você
+participa" stub section (`SecaoGruposConvidado`, "Sincronização completa chega em breve") is gone —
+shared grupos the user isn't the dono of now show up in the same list as owned ones, with a role
+chip (see Fase 2).
+
+**Fase 2 — permissões (`podeEditar`)**: "Responsável" is a pure UI label for the existing
+`PapelGrupo.EDITOR` (`data/model/GrupoRemoto.kt`) — no new enum, no migration; `editoresIds`/
+`GrupoRemoto.podeEditar(uid)`/`papelDe(uid)` (both pre-existing) are reused as-is. New
+`GrupoSyncViewModel.podeEditar: StateFlow<Boolean>` (default `true`) — for a grupo with no
+`firestoreId` (never shared) it stays `true` always; for a shared grupo it's computed from
+`grupoRemotoRepository.observarMeusGrupos(uid)` matched by `firestoreId`, using `podeEditar(uid)`.
+`MainScreen` (`MainActivity.kt`) collects this and threads `podeEditar: Boolean = true` into all 5
+pager screens (`CadastroJogadoresScreen`, `ConfiguracaoTimesScreen`, `SorteioTimesScreen`,
+`TimesAtuaisScreen`, `HistoricoScreen`) and their secondary screens (`DetalheJogadorScreen`,
+`ConfiguracaoPontuacaoScreen`, `GerenciadorPerfisScreen`). Pattern used everywhere: screens stay
+fully navigable, only the highest-leverage write control per screen is gated (`enabled = podeEditar`
+on buttons/icons, or an `onClick` guard + dimmed colors for composables without a native `enabled`
+param like `ExtendedFloatingActionButton`) — e.g. in `TimesAtuaisScreen`, disabling the single
+"editar estatísticas" toggle also blocks the whole nested vitória/derrota/empate +/- control area
+behind it, so that one gate was enough rather than gating each nested button. **Deliberate scope
+cut**: `SorteioTimesScreen`'s per-jogador disponibilidade toggle and `ConfiguracaoTimesScreen`'s
+`CriteriosSorteioCard` internals were left ungated (the screen's Salvar/Sortear button being
+disabled already blocks persistence) — revisit only if it's actually exploited by a Membro in
+practice. `DialogoGerenciarMembros` (`GruposPeladaScreen.kt`) now shows "Responsável"/"Tornar
+responsável" instead of "Editor"/"Tornar editor" to match.
+
+**Fase 3 — "Início" tab**: new package `ui/screens/infogrupo/` (`InfoGrupoScreen.kt` +
+`InfoGrupoViewModel.kt`, same `LaunchedEffect(grupoId) { viewModel.setGrupoId(grupoId) }` convention
+as every other grupo-scoped screen — not `SavedStateHandle`). Shows nome + role chip, local/horário
+(`SectionCard`/`StatTile` from `ui/common/`, `ChipPapel`/`formatarHorarioGrupo` imported from
+`ui.screens.grupos`), jogadores cadastrados count, membros do grupo count (only if shared), and a
+"Próxima pelada" card. Countdown logic: a private `DiaSemana.paraDayOfWeek()` extension maps to
+`java.time.DayOfWeek`, then `(alvo.value - hoje.value + 7) % 7` gives days-until (0 = "Pelada hoje!",
+`null` for `TipoRecorrencia.ESPORADICA` or no dia configured → "Pelada esporádica" / "Nenhum dia
+configurado" text instead). `MainActivity.kt`: `pageCount` 5→6, `page == 0` is now `InfoGrupoScreen`,
+old pages 0..4 shifted to 1..5 (internal `animateScrollToPage` targets updated to match).
+`BoleiragemBottomNavigationBar.kt` gained a new first item ("Início", `Icons.Filled.Groups`).
+
+**Verified 2026-09-04 (guest mode, single device, dono path only)**: compiled clean
+(`compileDebugKotlin`), installed, opened the existing recorrente/SEXTA "Pelada Joga 10" grupo as
+guest (always Dono locally) — "Início" tab shows correct nome/local/horário/"Dono" chip/"1 Jogadores
+cadastrados"/"Pelada hoje!" (today is a Friday), all 6 bottom-nav tabs present and navigable,
+`CadastroJogadoresScreen` renders with edit/delete/add all enabled as expected for a dono. **Not yet
+verified**: the actual join-by-code → local mirror creation → "Membro"/"Responsável" chip →
+disabled-controls path, since that needs a 2nd real account (same caveat as the Fase 1/2/3 content
+sync work). Don't tell the user the Membro-side experience "works" until seen succeeding firsthand.
 
 ## Redesign — 1ª onda shipped 2026-09-04, 2ª onda not started
 
