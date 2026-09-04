@@ -78,5 +78,32 @@ service cloud.firestore {
       allow read: if autenticado();
       allow write: if autenticado() && request.auth.uid == uid;
     }
+
+    // Fase 2: conteúdo de um grupo compartilhado (jogadores, histórico, configurações).
+    // Mesma regra pros quatro: membros só leem, dono/editores leem e escrevem — reaproveitando
+    // ehMembro/podeEditarConteudo acima, passando o documento do grupo pai via get().
+    function grupoPai(grupoId) {
+      return get(/databases/$(database)/documents/grupos/$(grupoId));
+    }
+
+    match /grupos/{grupoId}/jogadores/{jogadorId} {
+      allow read: if ehMembro(grupoPai(grupoId)) || podeEditarConteudo(grupoPai(grupoId));
+      allow write: if podeEditarConteudo(grupoPai(grupoId));
+    }
+
+    match /grupos/{grupoId}/historico/{peladaId} {
+      allow read: if ehMembro(grupoPai(grupoId)) || podeEditarConteudo(grupoPai(grupoId));
+      allow write: if podeEditarConteudo(grupoPai(grupoId));
+    }
+
+    match /grupos/{grupoId}/configuracaoSorteio/{configId} {
+      allow read: if ehMembro(grupoPai(grupoId)) || podeEditarConteudo(grupoPai(grupoId));
+      allow write: if podeEditarConteudo(grupoPai(grupoId));
+    }
+
+    match /grupos/{grupoId}/configuracaoPontuacao/{configId} {
+      allow read: if ehMembro(grupoPai(grupoId)) || podeEditarConteudo(grupoPai(grupoId));
+      allow write: if podeEditarConteudo(grupoPai(grupoId));
+    }
   }
 }

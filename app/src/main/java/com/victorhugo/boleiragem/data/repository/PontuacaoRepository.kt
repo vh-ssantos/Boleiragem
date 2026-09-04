@@ -5,6 +5,7 @@ import com.victorhugo.boleiragem.data.dao.JogadorDao
 import com.victorhugo.boleiragem.data.model.ConfiguracaoPontuacao
 import com.victorhugo.boleiragem.data.model.HistoricoTime
 import com.victorhugo.boleiragem.data.model.Jogador
+import com.victorhugo.boleiragem.data.model.toLocal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +22,10 @@ import javax.inject.Singleton
 @Singleton
 class PontuacaoRepository @Inject constructor(
     private val configuracaoPontuacaoDao: ConfiguracaoPontuacaoDao,
-    private val jogadorDao: JogadorDao
+    private val jogadorDao: JogadorDao,
+    private val grupoPeladaRepository: GrupoPeladaRepository,
+    private val authRepository: AuthRepository,
+    private val configuracaoSyncRepository: ConfiguracaoSyncRepository
 ) {
     // Configuração de pontuação agora é por grupo (antes era um singleton global de id fixo = 1,
     // o que fazia todos os grupos compartilharem a mesma pontuação — bug de antes do multi-grupo).
@@ -61,7 +65,38 @@ class PontuacaoRepository @Inject constructor(
 
         configuracoesPadraoCriadas.add(grupoId)
         recalcularPontuacaoJogadores(grupoId)
+        configuracaoPontuacaoDao.getConfiguracaoPontuacao(grupoId).firstOrNull()?.let { sincronizar(it) }
     }
+
+    // Push "melhor esforço" — só roda se o grupo já foi compartilhado (tem firestoreId) e há usuário autenticado.
+    private suspend fun sincronizar(configuracao: ConfiguracaoPontuacao) {
+        try {
+            val grupoFirestoreId = grupoPeladaRepository.getGrupoPorId(configuracao.grupoId)?.firestoreId ?: return
+            if (authRepository.usuarioAtual == null) return
+            val agora = System.currentTimeMillis()
+            val configComTimestamp = configuracao.copy(atualizadoEm = agora)
+            val firestoreId = configuracaoSyncRepository.enviarConfiguracaoPontuacao(grupoFirestoreId, configComTimestamp)
+            if (configuracao.firestoreId != firestoreId || configuracao.atualizadoEm != agora) {
+                configuracaoPontuacaoDao.atualizarConfiguracaoPontuacao(configComTimestamp.copy(firestoreId = firestoreId))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Pull: replica a configuração de pontuação de outros dispositivos para o Room local.
+    fun observarSincronizacaoRemota(grupoId: Long, grupoFirestoreId: String): Flow<Unit> =
+        configuracaoSyncRepository.observarConfiguracaoPontuacao(grupoFirestoreId).map { remotas ->
+            remotas.forEach { remota ->
+                if (remota.id.isBlank()) return@forEach
+                val local = configuracaoPontuacaoDao.getPorFirestoreId(remota.id)
+                when {
+                    local == null -> configuracaoPontuacaoDao.inserirConfiguracaoPontuacao(remota.toLocal(grupoId))
+                    remota.atualizadoEm > local.atualizadoEm ->
+                        configuracaoPontuacaoDao.atualizarConfiguracaoPontuacao(remota.toLocal(grupoId).copy(id = local.id))
+                }
+            }
+        }
 
     // Finaliza a partida e atualiza as estatísticas dos jogadores de um grupo
     suspend fun finalizarPartida(times: List<HistoricoTime>) {

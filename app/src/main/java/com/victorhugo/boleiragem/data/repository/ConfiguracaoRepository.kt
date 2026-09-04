@@ -2,6 +2,7 @@ package com.victorhugo.boleiragem.data.repository
 
 import com.victorhugo.boleiragem.data.dao.ConfiguracaoDao
 import com.victorhugo.boleiragem.data.model.ConfiguracaoSorteio
+import com.victorhugo.boleiragem.data.model.toLocal
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
@@ -14,7 +15,10 @@ import javax.inject.Singleton
 
 @Singleton
 class ConfiguracaoRepository @Inject constructor(
-    private val configuracaoDao: ConfiguracaoDao
+    private val configuracaoDao: ConfiguracaoDao,
+    private val grupoPeladaRepository: GrupoPeladaRepository,
+    private val authRepository: AuthRepository,
+    private val configuracaoSyncRepository: ConfiguracaoSyncRepository
 ) {
     // ID do grupo atual como um StateFlow
     private val _grupoIdAtualFlow = MutableStateFlow(0L)
@@ -54,8 +58,40 @@ class ConfiguracaoRepository @Inject constructor(
     suspend fun salvarConfiguracao(configuracao: ConfiguracaoSorteio): Long {
         // Garante que a configuração tem o grupoId atual
         val configComGrupoId = configuracao.copy(grupoId = _grupoIdAtualFlow.value)
-        return configuracaoDao.salvarConfiguracao(configComGrupoId)
+        val id = configuracaoDao.salvarConfiguracao(configComGrupoId)
+        sincronizar(configComGrupoId.copy(id = id))
+        return id
     }
+
+    // Push "melhor esforço" — só roda se o grupo já foi compartilhado (tem firestoreId) e há usuário autenticado.
+    private suspend fun sincronizar(configuracao: ConfiguracaoSorteio) {
+        try {
+            val grupoFirestoreId = grupoPeladaRepository.getGrupoPorId(configuracao.grupoId)?.firestoreId ?: return
+            if (authRepository.usuarioAtual == null) return
+            val agora = System.currentTimeMillis()
+            val configComTimestamp = configuracao.copy(atualizadoEm = agora)
+            val firestoreId = configuracaoSyncRepository.enviarConfiguracaoSorteio(grupoFirestoreId, configComTimestamp)
+            if (configuracao.firestoreId != firestoreId || configuracao.atualizadoEm != agora) {
+                configuracaoDao.salvarConfiguracao(configComTimestamp.copy(firestoreId = firestoreId))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // Pull: replica perfis de configuração de sorteio de outros dispositivos para o Room local.
+    fun observarSincronizacaoRemota(grupoId: Long, grupoFirestoreId: String): Flow<Unit> =
+        configuracaoSyncRepository.observarConfiguracoesSorteio(grupoFirestoreId).map { remotas ->
+            remotas.forEach { remota ->
+                if (remota.id.isBlank()) return@forEach
+                val local = configuracaoDao.getPorFirestoreId(remota.id)
+                when {
+                    local == null -> configuracaoDao.salvarConfiguracao(remota.toLocal(grupoId))
+                    remota.atualizadoEm > local.atualizadoEm ->
+                        configuracaoDao.salvarConfiguracao(remota.toLocal(grupoId).copy(id = local.id))
+                }
+            }
+        }
 
     // Remove uma configuração pelo ID
     suspend fun deletarConfiguracao(id: Long) {

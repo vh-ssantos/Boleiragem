@@ -56,4 +56,7 @@ interface JogadorDao {
 
     @Query("SELECT * FROM jogadores WHERE id IN (:jogadoresIds)")
     suspend fun getJogadoresPorIds(jogadoresIds: List<Long>): List<Jogador>
+
+    @Query("SELECT * FROM jogadores WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getJogadorPorFirestoreId(firestoreId: String): Jogador?
 }

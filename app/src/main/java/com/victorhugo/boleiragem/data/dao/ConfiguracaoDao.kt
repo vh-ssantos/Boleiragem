@@ -45,4 +45,7 @@ interface ConfiguracaoDao {
 
     @Query("UPDATE configuracao_sorteio SET isPadrao = 1 WHERE id = :id")
     suspend fun marcarConfiguracoComoPadrao(id: Long)
+
+    @Query("SELECT * FROM configuracao_sorteio WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getPorFirestoreId(firestoreId: String): ConfiguracaoSorteio?
 }

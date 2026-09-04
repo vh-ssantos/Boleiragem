@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,7 @@ import com.victorhugo.boleiragem.ui.screens.cadastro.DetalheJogadorScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoPontuacaoScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.ConfiguracaoTimesScreen
 import com.victorhugo.boleiragem.ui.screens.configuracao.GerenciadorPerfisScreen
+import com.victorhugo.boleiragem.ui.screens.grupos.GrupoSyncViewModel
 import com.victorhugo.boleiragem.ui.screens.grupos.GruposPeladaScreen
 import com.victorhugo.boleiragem.ui.screens.historico.HistoricoScreen
 import com.victorhugo.boleiragem.ui.screens.login.LoginScreen
@@ -220,13 +222,20 @@ fun MainScreen(
     grupoNome: String = "",
     onVoltarParaGerenciamento: () -> Unit = {}
 ) {
-    val navController = rememberNavController() 
+    val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     var selectedTabIndex by remember { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
         initialPage = selectedTabIndex,
         pageCount = { 5 } // Jogadores, Regras, Sorteio, Jogo, Estatísticas
     )
+
+    // Fase 2: enquanto este grupo está aberto, mantém a sincronização com o Firestore ativa
+    // (só faz algo de fato se o grupo tiver firestoreId e houver usuário autenticado).
+    val grupoSyncViewModel: GrupoSyncViewModel = hiltViewModel()
+    LaunchedEffect(grupoId) {
+        grupoSyncViewModel.sincronizarGrupo(grupoId)
+    }
 
     LaunchedEffect(pagerState.currentPage) {
         selectedTabIndex = pagerState.currentPage

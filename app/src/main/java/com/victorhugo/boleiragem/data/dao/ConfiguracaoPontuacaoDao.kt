@@ -20,4 +20,7 @@ interface ConfiguracaoPontuacaoDao {
     // Retorna o número de linhas afetadas — usado para decidir se é preciso inserir em vez de atualizar.
     @Update
     suspend fun atualizarConfiguracaoPontuacao(configuracaoPontuacao: ConfiguracaoPontuacao): Int
+
+    @Query("SELECT * FROM configuracao_pontuacao WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getPorFirestoreId(firestoreId: String): ConfiguracaoPontuacao?
 }

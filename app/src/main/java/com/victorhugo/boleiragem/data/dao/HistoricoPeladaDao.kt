@@ -17,4 +17,10 @@ interface HistoricoPeladaDao {
 
     @Query("DELETE FROM historico_pelada")
     suspend fun limparHistorico()
+
+    @Query("SELECT * FROM historico_pelada WHERE firestoreId = :firestoreId LIMIT 1")
+    suspend fun getPorFirestoreId(firestoreId: String): HistoricoPelada?
+
+    @Query("SELECT * FROM historico_pelada WHERE grupoId = :grupoId ORDER BY dataFinalizacao DESC")
+    fun getHistoricoPorGrupo(grupoId: Long): Flow<List<HistoricoPelada>>
 }
