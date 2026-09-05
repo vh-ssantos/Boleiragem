@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -154,12 +156,56 @@ class GruposPeladaViewModel @Inject constructor(
     private val _perfisMembros = MutableStateFlow<Map<String, UsuarioPerfil>>(emptyMap())
     val perfisMembros: StateFlow<Map<String, UsuarioPerfil>> = _perfisMembros.asStateFlow()
 
+    private var convidadoSessaoId: String? = null
+    private var usuarioUidSessao: String? = null
+    private var sessaoInicializada = false
+    private var gruposJob: Job? = null
+    private var gruposCompartilhadosJob: Job? = null
+
     val uidAtual: String? get() = authRepository.usuarioAtual?.uid
 
     init {
+        viewModelScope.launch {
+            authRepository.estadoAutenticacao.collect { usuario ->
+                if (convidadoSessaoId == null) {
+                    atualizarSessao(convidadoId = null, usuarioUid = usuario?.uid)
+                }
+            }
+        }
+    }
+
+    fun definirSessaoConvidado(sessaoId: String?) {
+        atualizarSessao(
+            convidadoId = sessaoId,
+            usuarioUid = if (sessaoId == null) uidAtual else null
+        )
+    }
+
+    private fun atualizarSessao(convidadoId: String?, usuarioUid: String?) {
+        if (
+            sessaoInicializada &&
+            convidadoSessaoId == convidadoId &&
+            usuarioUidSessao == usuarioUid
+        ) {
+            return
+        }
+
+        sessaoInicializada = true
+        convidadoSessaoId = convidadoId
+        usuarioUidSessao = usuarioUid
+
+        gruposJob?.cancel()
+        gruposCompartilhadosJob?.cancel()
+        _grupos.value = emptyList()
+        _jogadoresPorGrupo.value = emptyMap()
+        _papeisGrupos.value = emptyMap()
+        _perfisMembros.value = emptyMap()
+
         carregarGrupos()
-        observarGruposCompartilhados()
-        salvarPerfilUsuarioLogado()
+        observarGruposCompartilhados(usuarioUid)
+        if (usuarioUid != null) {
+            salvarPerfilUsuarioLogado()
+        }
     }
 
     private fun salvarPerfilUsuarioLogado() {
@@ -170,9 +216,9 @@ class GruposPeladaViewModel @Inject constructor(
         }
     }
 
-    private fun observarGruposCompartilhados() {
-        val uid = uidAtual ?: return // Modo convidado ("entrar sem conta") não tem grupos remotos
-        viewModelScope.launch {
+    private fun observarGruposCompartilhados(uid: String?) {
+        uid ?: return // Modo convidado ("entrar sem conta") não tem grupos remotos
+        gruposCompartilhadosJob = viewModelScope.launch {
             try {
                 grupoRemotoRepository.observarMeusGrupos(uid).collect { todos ->
                     _papeisGrupos.value = todos.associate { it.id to it.papelDe(uid) }
@@ -182,6 +228,7 @@ class GruposPeladaViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("GruposVM", "Erro ao observar grupos compartilhados", e)
             }
         }
@@ -373,15 +420,28 @@ class GruposPeladaViewModel @Inject constructor(
     }
 
     fun carregarGrupos() {
-        viewModelScope.launch {
+        gruposJob?.cancel()
+        gruposJob = viewModelScope.launch {
             _carregando.value = true
             try {
-                grupoPeladaRepository.getTodosGrupos().collect { gruposLista ->
+                val sessaoConvidado = convidadoSessaoId
+                val sessaoUsuario = usuarioUidSessao
+                if (sessaoConvidado == null && sessaoUsuario == null) {
+                    _grupos.value = emptyList()
+                    _jogadoresPorGrupo.value = emptyMap()
+                    _carregando.value = false
+                    return@launch
+                }
+
+                val fluxoGrupos = sessaoConvidado?.let { grupoPeladaRepository.getGruposPorUsuario(it) }
+                    ?: grupoPeladaRepository.getTodosGrupos()
+                fluxoGrupos.collect { gruposLista ->
                     _grupos.value = gruposLista
                     atualizarJogadoresPorGrupo()
                     _carregando.value = false
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e("GruposVM", "Erro ao carregar grupos", e)
                 _carregando.value = false
             }
@@ -439,7 +499,10 @@ class GruposPeladaViewModel @Inject constructor(
                     tipoRecorrencia = tipoRecorrencia, diaSemana = diaSemana ?: DiaSemana.DOMINGO,
                     diasSemana = diasSemanaFinal, latitude = latitude, longitude = longitude, endereco = endereco,
                     localNome = localNome, dataCriacao = System.currentTimeMillis(), ultimaModificacao = System.currentTimeMillis(),
-                    ativo = true, jogadoresIds = emptyList(), usuarioId = "local", compartilhado = false
+                    ativo = true,
+                    jogadoresIds = emptyList(),
+                    usuarioId = convidadoSessaoId ?: uidAtual ?: "local",
+                    compartilhado = false
                 )
                 if (grupoAtual != null) grupoPeladaRepository.atualizarGrupo(grupoSalvar) else grupoPeladaRepository.inserirGrupo(grupoSalvar)
                 fecharDialogoGrupo()

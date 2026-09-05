@@ -1,5 +1,6 @@
 package com.victorhugo.boleiragem.ui.screens.perfil
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -7,14 +8,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
@@ -25,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -79,6 +84,7 @@ fun PerfilAvatarButton(
                 },
                 onRedefinirSenhaClick = viewModel::redefinirSenha,
                 onSairClick = {
+                    Log.d("PerfilMenu", "Usuário tocou em sair pelo menu de perfil")
                     mostrarMenu = false
                     onSairClick()
                 },
@@ -134,7 +140,13 @@ private fun PerfilMenuConteudo(
     onSairClick: () -> Unit,
     onFecharClick: () -> Unit
 ) {
-    Column(modifier = Modifier.padding(horizontal = 8.dp).padding(bottom = 16.dp)) {
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 8.dp)
+            .padding(bottom = 16.dp)
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState())
+    ) {
         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             IconButton(onClick = onFecharClick, modifier = Modifier.align(Alignment.CenterEnd)) {
                 Icon(imageVector = Icons.Filled.Close, contentDescription = "Fechar")
@@ -176,6 +188,7 @@ private fun PerfilMenuConteudo(
                         "Entre com e-mail ou Google para ter perfil e histórico completos.",
                     modifier = Modifier.fillMaxWidth()
                 )
+                BotaoSairPerfil(texto = "Sair do modo convidado", onClick = onSairClick)
             }
             else -> {
                 ItemMenu(
@@ -209,14 +222,34 @@ private fun PerfilMenuConteudo(
                         )
                     }
                 }
-                ItemMenu(
-                    icone = Icons.Filled.ExitToApp,
-                    texto = "Sair da conta",
-                    onClick = onSairClick,
-                    mostrarChevron = false
-                )
+                BotaoSairPerfil(texto = "Sair da conta", onClick = onSairClick)
             }
         }
+    }
+}
+
+@Composable
+private fun BotaoSairPerfil(
+    texto: String,
+    onClick: () -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error
+        )
+        Spacer(modifier = Modifier.padding(start = 12.dp))
+        Text(
+            text = texto,
+            color = MaterialTheme.colorScheme.error,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -253,13 +286,13 @@ internal fun AvatarIniciais(nome: String, tamanho: Dp = 72.dp) {
     Box(
         modifier = Modifier
             .size(tamanho)
-            .background(MaterialTheme.colorScheme.primary, CircleShape),
+            .background(MaterialTheme.colorScheme.tertiaryContainer, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = inicial,
             style = if (tamanho >= 56.dp) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
             fontWeight = FontWeight.Bold
         )
     }

@@ -40,6 +40,21 @@ class LoginViewModel @Inject constructor(
     )
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
+    /**
+     * Consome o evento de login bem-sucedido depois que a navegação acontece.
+     *
+     * Este ViewModel vive no escopo da Activity (LoginScreen usa hiltViewModel() sem NavHost em
+     * volta), então a mesma instância reaparece quando o usuário desloga e a tela de login volta.
+     * Sem consumir o evento, `autenticado` continuava true e o LaunchedEffect da tela chamava
+     * onLoginSucesso() de imediato — era o bug de "Sair da conta" piscar e voltar pra tela logada.
+     *
+     * Reseta o estado inteiro de propósito: também limpa e-mail e senha digitados, que não devem
+     * sobreviver em memória depois do login.
+     */
+    fun onNavegacaoLoginConsumida() {
+        _uiState.value = LoginUiState()
+    }
+
     fun onEmailChange(email: String) {
         _uiState.update { it.copy(email = email, erro = null) }
     }

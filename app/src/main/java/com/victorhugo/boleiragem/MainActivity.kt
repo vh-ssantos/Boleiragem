@@ -3,6 +3,7 @@ package com.victorhugo.boleiragem
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +48,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
 import com.victorhugo.boleiragem.navigation.BoleiragemBottomNavigationBar
 import com.victorhugo.boleiragem.navigation.NavDestinations
 import com.victorhugo.boleiragem.ui.screens.cadastro.CadastroJogadoresScreen
@@ -67,6 +70,7 @@ import com.victorhugo.boleiragem.ui.theme.BoleiragemTheme
 import com.victorhugo.boleiragem.util.AppUpdateChecker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -130,26 +134,83 @@ fun BoleiragemApp() {
     var showResultadoSorteioRapido by remember { mutableStateOf(false) } // Nova flag de estado
     var grupoSelecionadoId by remember { mutableStateOf(-1L) }
     var grupoSelecionadoNome by remember { mutableStateOf("") }
+    var convidadoSessaoId by remember { mutableStateOf<String?>(null) }
+    var authInicializado by remember { mutableStateOf(false) }
+    var usuarioFirebase by remember { mutableStateOf<FirebaseUser?>(FirebaseAuth.getInstance().currentUser) }
+
+    DisposableEffect(Unit) {
+        val auth = FirebaseAuth.getInstance()
+        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            usuarioFirebase = firebaseAuth.currentUser
+            authInicializado = true
+            Log.d(
+                "BoleiragemApp",
+                "AuthStateListener: usuario=${firebaseAuth.currentUser?.uid ?: "null"}"
+            )
+        }
+        auth.addAuthStateListener(listener)
+        onDispose { auth.removeAuthStateListener(listener) }
+    }
+
+    fun mostrarLogin() {
+        showSplashScreen = false
+        showLoginScreen = true
+        showGruposScreen = false
+        showResultadoSorteioRapido = false
+        grupoSelecionadoId = -1L
+        grupoSelecionadoNome = ""
+        convidadoSessaoId = null
+    }
+
+    fun mostrarGruposContaLogada() {
+        showSplashScreen = false
+        showLoginScreen = false
+        showGruposScreen = true
+        showResultadoSorteioRapido = false
+        grupoSelecionadoId = -1L
+        grupoSelecionadoNome = ""
+        convidadoSessaoId = null
+    }
+
+    fun sairDaSessao(origem: String) {
+        val auth = FirebaseAuth.getInstance()
+        Log.d("BoleiragemApp", "Saindo da sessão atual por $origem. usuarioAntes=${auth.currentUser?.uid ?: "null"}")
+        auth.signOut()
+        mostrarLogin()
+        Log.d("BoleiragemApp", "Logout solicitado por $origem. usuarioDepois=${auth.currentUser?.uid ?: "null"}")
+    }
+
+    LaunchedEffect(usuarioFirebase, authInicializado) {
+        if (authInicializado) {
+            if (usuarioFirebase != null && convidadoSessaoId == null) {
+                mostrarGruposContaLogada()
+            } else if (usuarioFirebase == null && showSplashScreen) {
+                mostrarLogin()
+            }
+        }
+    }
 
     when {
         showSplashScreen -> {
             SplashScreen(onNavigateToHome = {
-                showSplashScreen = false
-                // Se já existe uma sessão do Firebase Auth ativa, pula a tela de login
-                if (FirebaseAuth.getInstance().currentUser != null) {
-                    showGruposScreen = true
+                if (usuarioFirebase != null) {
+                    mostrarGruposContaLogada()
+                } else if (authInicializado) {
+                    mostrarLogin()
                 } else {
-                    showLoginScreen = true
+                    // Se o Firebase ainda não restaurou a sessão, segura na splash por mais um
+                    // ciclo de auth em vez de mandar o usuário para login cedo demais.
+                    showSplashScreen = true
                 }
             })
         }
         showLoginScreen -> {
             LoginScreen(
                 onLoginSucesso = {
-                    showLoginScreen = false
-                    showGruposScreen = true
+                    mostrarGruposContaLogada()
                 },
                 onEntrarSemContaClick = {
+                    convidadoSessaoId = "convidado-${UUID.randomUUID()}"
                     showLoginScreen = false
                     showGruposScreen = true
                 }
@@ -157,6 +218,7 @@ fun BoleiragemApp() {
         }
         showGruposScreen -> {
             GruposPeladaScreen(
+                convidadoSessaoId = convidadoSessaoId,
                 onGrupoSelecionado = { grupoId, grupoNome ->
                     grupoSelecionadoId = grupoId
                     grupoSelecionadoNome = grupoNome
@@ -170,11 +232,7 @@ fun BoleiragemApp() {
                     }
                 },
                 onSairClick = { // Implementação do onSairClick
-                    FirebaseAuth.getInstance().signOut()
-                    showGruposScreen = false
-                    showLoginScreen = true
-                    showResultadoSorteioRapido = false // Garante que outras telas sejam resetadas
-                    // grupoSelecionadoId e grupoSelecionadoNome não precisam ser resetados aqui
+                    sairDaSessao("tela de grupos")
                 }
             )
         }
@@ -216,10 +274,7 @@ fun BoleiragemApp() {
                 onSairClick = {
                     // Mesmo fluxo do "Sair" na tela de grupos — chamado a partir da aba Perfil,
                     // que vive dentro de MainScreen.
-                    FirebaseAuth.getInstance().signOut()
-                    showGruposScreen = false
-                    showLoginScreen = true
-                    showResultadoSorteioRapido = false
+                    sairDaSessao("tela interna do grupo")
                 }
             )
         }

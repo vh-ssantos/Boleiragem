@@ -20,10 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.ViewModule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -58,12 +55,12 @@ import java.util.Locale
 @Composable
 fun GruposPeladaScreen(
     viewModel: GruposPeladaViewModel = hiltViewModel(),
+    convidadoSessaoId: String? = null,
     onGrupoSelecionado: (Long, String) -> Unit = { _, _ -> },
     onNavigateToSorteioResultado: (isSorteioRapido: Boolean) -> Unit,
     onSairClick: () -> Unit
 ) {
     val grupos by viewModel.grupos.collectAsState()
-    val tipoVisualizacao by viewModel.tipoVisualizacao.collectAsState()
     val carregando by viewModel.carregando.collectAsState()
     val mostrarDialogoGrupo by viewModel.mostrarDialogoGrupo.collectAsState()
     val grupoEmEdicao by viewModel.grupoEmEdicao.collectAsState()
@@ -114,6 +111,10 @@ fun GruposPeladaScreen(
     val grupoParaGerenciarMembros by viewModel.grupoParaGerenciarMembros.collectAsState()
     val perfisMembros by viewModel.perfisMembros.collectAsState()
 
+    LaunchedEffect(convidadoSessaoId) {
+        viewModel.definirSessaoConvidado(convidadoSessaoId)
+    }
+
     LaunchedEffect(navegarParaResultadoSorteio) {
         if (navegarParaResultadoSorteio == true) {
             viewModel.onNavegacaoParaResultadoSorteioRealizada()
@@ -133,175 +134,33 @@ fun GruposPeladaScreen(
         )
     } else {
         Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text("Minhas Peladas") },
-                    navigationIcon = {
-                        com.victorhugo.boleiragem.ui.screens.perfil.PerfilAvatarButton(onSairClick = onSairClick)
-                    },
-                    actions = {
-                        SingleChoiceSegmentedButtonRow(
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        ) {
-                            SegmentedButton(
-                                selected = tipoVisualizacao == TipoVisualizacao.LISTA,
-                                onClick = { viewModel.alterarTipoVisualizacao(TipoVisualizacao.LISTA) },
-                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
-                                icon = { Icon(Icons.AutoMirrored.Filled.List, "Visualização em Lista") },
-                                colors = SegmentedButtonDefaults.colors(
-                                    activeContainerColor = MaterialTheme.colorScheme.onPrimary,
-                                    activeContentColor = MaterialTheme.colorScheme.primary,
-                                    inactiveContainerColor = MaterialTheme.colorScheme.primary,
-                                    inactiveContentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {}
-                            SegmentedButton(
-                                selected = tipoVisualizacao == TipoVisualizacao.CARDS,
-                                onClick = { viewModel.alterarTipoVisualizacao(TipoVisualizacao.CARDS) },
-                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
-                                icon = { Icon(Icons.Outlined.GridView, "Visualização em Cards") },
-                                colors = SegmentedButtonDefaults.colors(
-                                    activeContainerColor = MaterialTheme.colorScheme.onPrimary,
-                                    activeContentColor = MaterialTheme.colorScheme.primary,
-                                    inactiveContainerColor = MaterialTheme.colorScheme.primary,
-                                    inactiveContentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {}
-                            SegmentedButton(
-                                selected = tipoVisualizacao == TipoVisualizacao.MINIMALISTA,
-                                onClick = { viewModel.alterarTipoVisualizacao(TipoVisualizacao.MINIMALISTA) },
-                                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
-                                icon = { Icon(Icons.Outlined.ViewModule, "Visualização Minimalista") },
-                                colors = SegmentedButtonDefaults.colors(
-                                    activeContainerColor = MaterialTheme.colorScheme.onPrimary,
-                                    activeContentColor = MaterialTheme.colorScheme.primary,
-                                    inactiveContainerColor = MaterialTheme.colorScheme.primary,
-                                    inactiveContentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {}
-                        }
-                    },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimary,
-                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                )
-            },
+            topBar = {},
             floatingActionButton = {
-                Column(horizontalAlignment = Alignment.End) {
-                    FloatingActionButton(
-                        onClick = { mostrarCronometro = true },
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        Icon(Icons.Filled.Timer, contentDescription = "Cronômetro")
-                    }
-                    FloatingActionButton(
-                        onClick = { viewModel.abrirDialogoEntrarComCodigo() },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        Icon(Icons.Filled.GroupAdd, contentDescription = "Entrar em um grupo com código")
-                    }
-                    FloatingActionButton(
-                        onClick = { mostrarDialogoOpcoesSorteio = true }, // Modificado para abrir o diálogo de opções
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    ) {
-                        Icon(Icons.Filled.ContentPaste, contentDescription = "Iniciar Sorteio") // Ícone mantido, descrição pode ser ajustada
-                    }
-                    // FAB de Sorteio Rápido de Grupo Existente REMOVIDO
-                    FloatingActionButton(
-                        onClick = { viewModel.mostrarDialogoCriarGrupo() },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = "Adicionar Grupo")
-                    }
-                }
+                ExtendedFloatingActionButton(
+                    onClick = { viewModel.mostrarDialogoCriarGrupo() },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text("Criar grupo") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             }
         ) { paddingValues ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
-                if (carregando) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else if (grupos.isEmpty()) {
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Image(painter = painterResource(id = R.drawable.ic_pelada_empty), "Nenhuma pelada encontrada", Modifier.size(120.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Nenhuma pelada encontrada", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Crie seu primeiro grupo de pelada clicando no botão +", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = { viewModel.mostrarDialogoCriarGrupo() }) {
-                            Icon(Icons.Default.Add, "Adicionar")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("CRIAR GRUPO")
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        // Adicionar aqui o botão para o novo diálogo de opções de sorteio se a lista de grupos estiver vazia
-                        // Ou incentivar o usuário a colar uma lista.
-                        Button(
-                            onClick = { mostrarDialogoOpcoesSorteio = true },
-                        ) {
-                            Icon(Icons.Filled.ContentPaste, "Sortear Jogadores")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("SORTEAR JOGADORES")
-                        }
-
-                    }
-                } else {
-                    when (tipoVisualizacao) {
-                        TipoVisualizacao.LISTA -> ListaVisualizacao(
-                            grupos = grupos,
-                            papeisGrupos = papeisGrupos,
-                            onGrupoClick = navegarParaDetalheGrupo,
-                            onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
-                            onExcluirClick = { viewModel.excluirGrupo(it) },
-                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
-                            onConvidarClick = { viewModel.abrirConvite(it) },
-                            onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } }
-                        )
-                        TipoVisualizacao.CARDS -> CardsVisualizacao(
-                            grupos = grupos,
-                            papeisGrupos = papeisGrupos,
-                            onGrupoClick = navegarParaDetalheGrupo,
-                            onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
-                            onExcluirClick = { viewModel.excluirGrupo(it) },
-                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
-                            onConvidarClick = { viewModel.abrirConvite(it) },
-                            onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } }
-                        )
-                        TipoVisualizacao.MINIMALISTA -> MinimalistaVisualizacao(
-                            grupos = grupos,
-                            papeisGrupos = papeisGrupos,
-                            onGrupoClick = navegarParaDetalheGrupo,
-                            onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
-                            onExcluirClick = { viewModel.excluirGrupo(it) },
-                            onSorteioRapidoClick = { viewModel.onAbrirDialogoSorteioRapido(it) },
-                            onConvidarClick = { viewModel.abrirConvite(it) },
-                            onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } }
-                        )
-                    }
-                }
-            }
-            }
+            HomeMinhasPeladas(
+                grupos = grupos,
+                papeisGrupos = papeisGrupos,
+                carregando = carregando,
+                paddingValues = paddingValues,
+                onSairClick = onSairClick,
+                onGrupoClick = navegarParaDetalheGrupo,
+                onEditarClick = { viewModel.mostrarDialogoEditarGrupo(it) },
+                onExcluirClick = { viewModel.excluirGrupo(it) },
+                onConvidarClick = { viewModel.abrirConvite(it) },
+                onSairDoGrupoClick = { grupo -> grupo.firestoreId?.let { viewModel.sairDeGrupoCompartilhadoPorId(it) } },
+                onCriarGrupoClick = { viewModel.mostrarDialogoCriarGrupo() },
+                onEntrarComCodigoClick = { viewModel.abrirDialogoEntrarComCodigo() },
+                onSorteioClick = { mostrarDialogoOpcoesSorteio = true },
+                onCronometroClick = { mostrarCronometro = true }
+            )
         }
     }
 
